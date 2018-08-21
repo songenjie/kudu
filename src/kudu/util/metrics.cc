@@ -208,8 +208,13 @@ bool MatchMetricInList(const string& metric_name,
 
 Status MetricEntity::WriteAsJson(JsonWriter* writer,
                                  const vector<string>& requested_metrics,
+                                 const vector<string>& requested_tablet_ids,
+                                 const vector<string>& requested_table_names,
                                  const MetricJsonOptions& opts) const {
-  bool select_all = MatchMetricInList(id(), requested_metrics);
+  bool select_tablet_id = MatchMetricInList(id(), requested_tablet_ids);
+  if(!select_tablet_id) {
+    return Status::OK();
+  }
 
   // We want the keys to be in alphabetical order when printing, so we use an ordered map here.
   typedef std::map<const char*, scoped_refptr<Metric> > OrderedMetricMap;
@@ -219,11 +224,16 @@ Status MetricEntity::WriteAsJson(JsonWriter* writer,
     // Snapshot the metrics in this registry (not guaranteed to be a consistent snapshot)
     std::lock_guard<simple_spinlock> l(lock_);
     attrs = attributes_;
+    bool select_table_name = MatchMetricInList(attrs["table_name"], requested_table_names);
+    if(!select_table_name) {
+      return Status::OK();
+    }
+
     for (const MetricMap::value_type& val : metric_map_) {
       const MetricPrototype* prototype = val.first;
       const scoped_refptr<Metric>& metric = val.second;
 
-      if (select_all || MatchMetricInList(prototype->name(), requested_metrics)) {
+      if (MatchMetricInList(prototype->name(), requested_metrics)) {
         InsertOrDie(&metrics, prototype->name(), metric);
       }
     }
@@ -231,7 +241,7 @@ Status MetricEntity::WriteAsJson(JsonWriter* writer,
 
   // If we had a filter, and we didn't either match this entity or any metrics inside
   // it, don't print the entity at all.
-  if (!requested_metrics.empty() && !select_all && metrics.empty()) {
+  if (metrics.empty()) {
     return Status::OK();
   }
 
@@ -344,6 +354,8 @@ MetricRegistry::~MetricRegistry() {
 
 Status MetricRegistry::WriteAsJson(JsonWriter* writer,
                                    const vector<string>& requested_metrics,
+                                   const vector<string>& requested_tablet_ids,
+                                   const vector<string>& requested_table_names,
                                    const MetricJsonOptions& opts) const {
   EntityMap entities;
   {
@@ -353,7 +365,7 @@ Status MetricRegistry::WriteAsJson(JsonWriter* writer,
 
   writer->StartArray();
   for (const auto& e : entities) {
-    WARN_NOT_OK(e.second->WriteAsJson(writer, requested_metrics, opts),
+    WARN_NOT_OK(e.second->WriteAsJson(writer, requested_metrics, requested_tablet_ids, requested_table_names, opts),
                 Substitute("Failed to write entity $0 as JSON", e.second->id()));
   }
   writer->EndArray();
