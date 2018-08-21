@@ -492,6 +492,8 @@ class MetricEntity : public RefCountedThreadSafe<MetricEntity> {
   // See MetricRegistry::WriteAsJson()
   Status WriteAsJson(JsonWriter* writer,
                      const std::vector<std::string>& requested_metrics,
+                     const std::vector<std::string>& requested_tablet_ids,
+                     const std::vector<std::string>& requested_table_names,
                      const MetricJsonOptions& opts) const;
 
   const MetricMap& UnsafeMetricsMapForTests() const { return metric_map_; }
@@ -650,13 +652,21 @@ class MetricRegistry {
   // 'requested_metrics' is a set of substrings to match metric names against,
   // where '*' matches all metrics.
   //
-  // The string matching can either match an entity ID or a metric name.
-  // If it matches an entity ID, then all metrics for that entity will be printed.
+  // 'requested_tablet_ids' is a set of substrings to match entity IDs against,
+  // where '*' matches all tablets.
+  //
+  // 'requested_table_names' is a set of substring to match table names against,
+  // where '*' matches all table_names.
+  //
+  // The string matching can match entity IDs, table names and metric names.
+  // If it matches succeed, metrics for that entity will be printed.
   //
   // See the MetricJsonOptions struct definition above for options changing the
   // output of this function.
   Status WriteAsJson(JsonWriter* writer,
                      const std::vector<std::string>& requested_metrics,
+                     const std::vector<std::string>& requested_tablet_ids,
+                     const std::vector<std::string>& requested_table_names,
                      const MetricJsonOptions& opts) const;
 
   // For each registered entity, retires orphaned metrics. If an entity has no more

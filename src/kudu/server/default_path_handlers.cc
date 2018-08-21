@@ -314,7 +314,11 @@ static void WriteMetricsAsJson(const MetricRegistry* const metrics,
                                Webserver::PrerenderedWebResponse* resp) {
   std::ostringstream* output = resp->output;
   const string* requested_metrics_param = FindOrNull(req.parsed_args, "metrics");
+  const string* requested_tablet_ids_param = FindOrNull(req.parsed_args, "tablet_ids");
+  const string* requested_table_names_param = FindOrNull(req.parsed_args, "table_names");
   vector<string> requested_metrics;
+  vector<string> requested_tablet_ids;
+  vector<string> requested_table_names;
   MetricJsonOptions opts;
 
   {
@@ -340,8 +344,20 @@ static void WriteMetricsAsJson(const MetricRegistry* const metrics,
     // Default to including all metrics.
     requested_metrics.emplace_back("*");
   }
+  if (requested_tablet_ids_param != nullptr) {
+    SplitStringUsing(*requested_tablet_ids_param, ",", &requested_tablet_ids);
+  } else {
+    // Default to including all ids.
+    requested_tablet_ids.emplace_back("*");
+  }
+  if (requested_table_names_param != nullptr) {
+    SplitStringUsing(*requested_table_names_param, ",", &requested_table_names);
+  } else {
+    // Default to including all table_names.
+    requested_table_names.emplace_back("*");
+  }
 
-  WARN_NOT_OK(metrics->WriteAsJson(&writer, requested_metrics, opts),
+  WARN_NOT_OK(metrics->WriteAsJson(&writer, requested_metrics, requested_tablet_ids, requested_table_names, opts),
               "Couldn't write JSON metrics over HTTP");
 }
 

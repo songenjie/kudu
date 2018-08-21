@@ -180,11 +180,12 @@ TEST_F(MetricsTest, JsonPrintTest) {
   scoped_refptr<Counter> test_counter = METRIC_test_counter.Instantiate(entity_);
   test_counter->Increment();
   entity_->SetAttribute("test_attr", "attr_val");
+  entity_->SetAttribute("table_name", "table_name_val");
 
   // Generate the JSON.
   std::ostringstream out;
   JsonWriter writer(&out, JsonWriter::PRETTY);
-  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, MetricJsonOptions()));
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "*" }, MetricJsonOptions()));
 
   // Now parse it back out.
   JsonReader reader(out.str());
@@ -205,21 +206,55 @@ TEST_F(MetricsTest, JsonPrintTest) {
   string attr_value;
   ASSERT_OK(reader.ExtractString(attributes, "test_attr", &attr_value));
   ASSERT_EQ("attr_val", attr_value);
+  string table_name_value;
+  ASSERT_OK(reader.ExtractString(attributes, "table_name", &table_name_value));
+  ASSERT_EQ("table_name_val", table_name_value);
 
   // Verify that metric filtering matches on substrings.
   out.str("");
-  ASSERT_OK(entity_->WriteAsJson(&writer, { "test count" }, MetricJsonOptions()));
-  ASSERT_STR_CONTAINS(METRIC_test_counter.name(), out.str());
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "counter" }, { "*" }, { "*" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), METRIC_test_counter.name());
 
   // Verify that, if we filter for a metric that isn't in this entity, we get no result.
   out.str("");
-  ASSERT_OK(entity_->WriteAsJson(&writer, { "not_a_matching_metric" }, MetricJsonOptions()));
-  ASSERT_EQ("", out.str());
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "not_a_matching_metric" }, { "*" }, { "*" }, MetricJsonOptions()));
+  ASSERT_EQ(out.str(), "");
 
   // Verify that filtering is case-insensitive.
   out.str("");
-  ASSERT_OK(entity_->WriteAsJson(&writer, { "mY teST coUNteR" }, MetricJsonOptions()));
-  ASSERT_STR_CONTAINS(METRIC_test_counter.name(), out.str());
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "teST_coUNteR" }, { "*" }, { "*" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), METRIC_test_counter.name());
+
+  // Verify that tablet_id filtering matches on substrings.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "test" }, { "*" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), entity_->id());
+
+  // Verify that, if we filter for a tablet_id that doesn't match this entity, we get no result.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "not_a_matching_tablet_id" }, { "*" }, MetricJsonOptions()));
+  ASSERT_EQ(out.str(), "");
+
+  // Verify that filtering is case-insensitive.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "mY-TeSt" }, { "*" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), entity_->id());
+
+  // Verify that table_name filtering matches on substrings.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "table_name" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), table_name_value);
+
+  // Verify that, if we filter for a table_name that isn't in this entity, we get no result.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "not_a_matching_table_name" }, MetricJsonOptions()));
+  ASSERT_EQ(out.str(), "");
+
+  // Verify that filtering is case-insensitive.
+  out.str("");
+  ASSERT_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "tAbLE_nAMe_VaL" }, MetricJsonOptions()));
+  ASSERT_STR_CONTAINS(out.str(), table_name_value);
+
 }
 
 // Test that metrics are retired when they are no longer referenced.
@@ -333,7 +368,7 @@ TEST_F(MetricsTest, TestDumpOnlyChanged) {
     opts.only_modified_in_or_after_epoch = since_epoch;
     std::ostringstream out;
     JsonWriter writer(&out, JsonWriter::COMPACT);
-    CHECK_OK(entity_->WriteAsJson(&writer, { "*" }, opts));
+    CHECK_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "*" }, opts));
     return out.str();
   };
 
@@ -375,7 +410,7 @@ TEST_F(MetricsTest, TestDontDumpUntouched) {
   opts.include_untouched_metrics = false;
   std::ostringstream out;
   JsonWriter writer(&out, JsonWriter::COMPACT);
-  CHECK_OK(entity_->WriteAsJson(&writer, { "*" }, opts));
+  CHECK_OK(entity_->WriteAsJson(&writer, { "*" }, { "*" }, { "*" }, opts));
   // Untouched counters and histograms should not be included.
   ASSERT_STR_NOT_CONTAINS(out.str(), "test_counter");
   ASSERT_STR_NOT_CONTAINS(out.str(), "test_hist");
