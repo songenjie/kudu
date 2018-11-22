@@ -331,7 +331,7 @@ struct KsckResults {
   // The sections printed will be limited according to the value of 'sections'.
   Status PrintTo(PrintMode mode, int sections, std::ostream& out);
 
-  // Print this KsckResults to 'out' in JSON format.
+  // Print this KsckResults to 'out' in JSON format, and printed sections are limited by 'sections'.
   // 'mode' must be PrintMode::JSON_PRETTY or PrintMode::JSON_COMPACT.
   // The sections printed will be limited according to the value of 'sections'.
   Status PrintJsonTo(PrintMode mode, int sections, std::ostream& out) const;
