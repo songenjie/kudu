@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -39,9 +40,10 @@
 #include "kudu/gutil/strtoint.h"
 #include "kudu/tools/tool_action.h"
 #include "kudu/tools/tool_action_common.h"
-#include <kudu/util/atomic.h>
+#include "kudu/util/atomic.h"
 #include "kudu/util/monotime.h"
 #include "kudu/util/status.h"
+#include "kudu/util/stopwatch.h"
 #include "kudu/util/string_case.h"
 
 DECLARE_string(columns);
@@ -67,8 +69,12 @@ DEFINE_int64(scan_count, 0,
 DEFINE_bool(show_value, false,
             "Whether to show value of scanned items.");
 DECLARE_string(tables);
+DECLARE_string(tablets);
 DEFINE_string(target_table, "",
               "The name of the target table the data will copy to");
+DEFINE_string(write_type, "insert",
+              "Write data type, 'insert' or 'upsert'.");
+
 
 namespace kudu {
 namespace tools {
@@ -89,12 +95,14 @@ using client::KuduSession;
 using client::KuduTable;
 using client::KuduTableAlterer;
 using client::KuduTableCreator;
+using client::KuduWriteOperation;
 using client::KuduValue;
 using client::internal::ReplicaController;
 using client::sp::shared_ptr;
 using std::cout;
 using std::endl;
 using std::map;
+using std::set;
 using std::string;
 using std::thread;
 using std::unique_ptr;
@@ -218,8 +226,15 @@ Status ListTables(const RunnerContext& context) {
 
 Status AddRow(const shared_ptr<KuduTable>& table, const KuduSchema& table_schema,
               const KuduScanBatch::RowPtr& row, const shared_ptr<KuduSession>& session) {
-  std::unique_ptr<KuduInsert> insert(table->NewInsert());
-  KuduPartialRow* insert_row = insert->mutable_row();
+  std::unique_ptr<KuduWriteOperation> write_op;
+  if (FLAGS_write_type == "insert") {
+    write_op.reset(table->NewInsert());
+  } else if (FLAGS_write_type == "upsert") {
+    write_op.reset(table->NewUpsert());
+  } else {
+    return Status::InvalidArgument(Substitute("invalid write_type: $0", FLAGS_write_type));
+  }
+  KuduPartialRow* write_row = write_op->mutable_row();
   for (size_t i = 0; i < table_schema.num_columns(); ++i) {
     const KuduColumnSchema& col_schema = table_schema.Column(i);
     const std::string& col_name = col_schema.name();
@@ -227,77 +242,77 @@ Status AddRow(const shared_ptr<KuduTable>& table, const KuduSchema& table_schema
       case KuduColumnSchema::DataType::INT8: {
         int8_t v;
         if (row.GetInt8(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetInt8(col_name, v));
+          RETURN_NOT_OK(write_row->SetInt8(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::INT16: {
         int16_t v;
         if (row.GetInt16(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetInt16(col_name, v));
+          RETURN_NOT_OK(write_row->SetInt16(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::INT32: {
         int32_t v;
         if (row.GetInt32(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetInt32(col_name, v));
+          RETURN_NOT_OK(write_row->SetInt32(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::INT64: {
         int64_t v;
         if (row.GetInt64(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetInt64(col_name, v));
+          RETURN_NOT_OK(write_row->SetInt64(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::STRING: {
         Slice v;
         if (row.GetString(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetString(col_name, v));
+          RETURN_NOT_OK(write_row->SetString(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::BOOL: {
         bool v;
         if (row.GetBool(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetBool(col_name, v));
+          RETURN_NOT_OK(write_row->SetBool(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::FLOAT: {
         float v;
         if (row.GetFloat(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetFloat(col_name, v));
+          RETURN_NOT_OK(write_row->SetFloat(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::DOUBLE: {
         double v;
         if (row.GetDouble(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetDouble(col_name, v));
+          RETURN_NOT_OK(write_row->SetDouble(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::BINARY: {
         Slice v;
         if (row.GetBinary(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetBinary(col_name, v));
+          RETURN_NOT_OK(write_row->SetBinary(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::UNIXTIME_MICROS: {
         int64_t v;
         if (row.GetUnixTimeMicros(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetUnixTimeMicros(col_name, v));
+          RETURN_NOT_OK(write_row->SetUnixTimeMicros(col_name, v));
         }
         break;
       }
       case KuduColumnSchema::DataType::DECIMAL: {
         int128_t v;
         if (row.GetUnscaledDecimal(col_name, &v).ok()) {
-          RETURN_NOT_OK(insert_row->SetUnscaledDecimal(col_name, v));
+          RETURN_NOT_OK(write_row->SetUnscaledDecimal(col_name, v));
         }
         break;
       }
@@ -306,7 +321,7 @@ Status AddRow(const shared_ptr<KuduTable>& table, const KuduSchema& table_schema
     }
   }
 
-  return session->Apply(insert.release());
+  return session->Apply(write_op.release());
 }
 
 Status CheckFlush(const shared_ptr<KuduSession>& session, const Status& s) {
@@ -340,14 +355,19 @@ void CopyThread(const RunnerContext& context, const KuduSchema& table_schema, co
   session->SetTimeoutMillis(30000);
 
   for (auto token : tokens) {
+    Stopwatch sw(Stopwatch::THIS_THREAD);
+    sw.start();
+
     KuduScanner *scanner_ptr;
     DCHECK_OK(token->IntoKuduScanner(&scanner_ptr));
     unique_ptr<KuduScanner> scanner(scanner_ptr);
     DCHECK_OK(scanner->Open());
 
-    KuduScanBatch batch;
+    int count = 0;
     while (scanner->HasMoreRows()) {
+      KuduScanBatch batch;
       DCHECK_OK(scanner->NextBatch(&batch));
+      count += batch.NumRows();
       for (auto it = batch.begin(); it != batch.end(); ++it) {
         KuduScanBatch::RowPtr row(*it);
 
@@ -358,14 +378,21 @@ void CopyThread(const RunnerContext& context, const KuduSchema& table_schema, co
 
       total_count.IncrementBy(batch.NumRows());
     }
+    sw.stop();
+    LOG(INFO) << "T " << token->tablet().id() << " copied count " << count
+    << " cost " << sw.elapsed().wall_seconds() << " seconds" << endl;
   }
 }
 
 void MonitorThread() {
-    while (worker_count.Load() > 0) {
-        LOG(INFO) << "Scanned count: " << total_count.Load() << endl;
-        SleepFor(MonoDelta::FromSeconds(5));
+  MonoTime last_log_time = MonoTime::Now();
+  while (worker_count.Load() > 0) {
+    if (MonoTime::Now() - last_log_time >= MonoDelta::FromSeconds(5)) {
+      LOG(INFO) << "Scanned count: " << total_count.Load() << endl;
+      last_log_time = MonoTime::Now();
     }
+    SleepFor(MonoDelta::FromMilliseconds(100));
+  }
 }
 
 KuduValue* ParseValue(KuduColumnSchema::DataType type,
@@ -570,6 +597,7 @@ Status CopyTable(const RunnerContext& context) {
   RETURN_NOT_OK(builder.SetSelection(KuduClient::LEADER_ONLY));
   RETURN_NOT_OK(builder.SetReadMode(KuduScanner::READ_LATEST));
   RETURN_NOT_OK(AddPredicates(src_table, FLAGS_predicates, builder));
+  const set<string>& tablet_id_filters = Split(FLAGS_tablets, ",", strings::SkipEmpty());
 
   const KuduSchema& table_schema = src_table->schema();
 
@@ -580,13 +608,15 @@ Status CopyTable(const RunnerContext& context) {
   map<int, vector<KuduScanToken*>> thread_tokens;
   int i = 0;
   for (auto token : tokens) {
-    thread_tokens[i++ % FLAGS_num_threads].push_back(token);
+    if (tablet_id_filters.empty() || ContainsKey(tablet_id_filters, token->tablet().id())) {
+      thread_tokens[i++ % FLAGS_num_threads].push_back(token);
+    }
   }
 
   worker_count.Store(FLAGS_num_threads);
   vector<thread> threads;
   for (i = 0; i < FLAGS_num_threads; ++i) {
-      threads.emplace_back(&CopyThread, context, table_schema, thread_tokens[i]);
+    threads.emplace_back(&CopyThread, context, table_schema, thread_tokens[i]);
   }
   threads.emplace_back(&MonitorThread);
 
@@ -602,27 +632,34 @@ Status CopyTable(const RunnerContext& context) {
 
 void ScannerThread(const vector<KuduScanToken*>& tokens) {
   for (auto token : tokens) {
-      KuduScanner *scanner_ptr;
-      DCHECK_OK(token->IntoKuduScanner(&scanner_ptr));
-      unique_ptr<KuduScanner> scanner(scanner_ptr);
-      DCHECK_OK(scanner->Open());
+    Stopwatch sw(Stopwatch::THIS_THREAD);
+    sw.start();
 
-      int count = 0;
+    KuduScanner *scanner_ptr;
+    DCHECK_OK(token->IntoKuduScanner(&scanner_ptr));
+    unique_ptr<KuduScanner> scanner(scanner_ptr);
+    DCHECK_OK(scanner->Open());
+
+    int count = 0;
+    while (scanner->HasMoreRows()) {
       KuduScanBatch batch;
-      while (scanner->HasMoreRows()) {
-          DCHECK_OK(scanner->NextBatch(&batch));
-          for (auto it = batch.begin(); it != batch.end(); ++it) {
-              KuduScanBatch::RowPtr row(*it);
-              if (FLAGS_show_value) {
-                  LOG(INFO) << row.ToString() << endl;
-              }
-          }
-          total_count.IncrementBy(batch.NumRows());
-          if (total_count.Load() >= FLAGS_scan_count && FLAGS_scan_count > 0) {   // TODO maybe larger than FLAGS_scan_count
-              LOG(INFO) << "Scanned count(maybe not the total count in specified range): " << count << endl;
-              return;
-          }
+      DCHECK_OK(scanner->NextBatch(&batch));
+      count += batch.NumRows();
+      if (FLAGS_show_value) {
+        for (auto it = batch.begin(); it != batch.end(); ++it) {
+          KuduScanBatch::RowPtr row(*it);
+          LOG(INFO) << row.ToString() << endl;
+        }
       }
+      total_count.IncrementBy(batch.NumRows());
+      if (total_count.Load() >= FLAGS_scan_count && FLAGS_scan_count > 0) {   // TODO maybe larger than FLAGS_scan_count
+        LOG(INFO) << "Scanned count(maybe not the total count in specified range): " << count << endl;
+        return;
+      }
+    }
+    sw.stop();
+    LOG(INFO) << "T " << token->tablet().id() << " scanned count " << count
+    << " cost " << sw.elapsed().wall_seconds() << " seconds" << endl;
   }
 }
 
@@ -637,6 +674,7 @@ Status ScanRows(const shared_ptr<KuduTable>& table, const string& predicates, co
     RETURN_NOT_OK(builder.SetProjectedColumnNames(projected_column_names));
   }
   RETURN_NOT_OK(AddPredicates(table, predicates, builder));
+  const set<string>& tablet_id_filters = Split(FLAGS_tablets, ",", strings::SkipEmpty());
 
   vector<KuduScanToken*> tokens;
   ElementDeleter DeleteTable(&tokens);
@@ -645,11 +683,15 @@ Status ScanRows(const shared_ptr<KuduTable>& table, const string& predicates, co
   map<int, vector<KuduScanToken*>> thread_tokens;
   int i = 0;
   for (auto token : tokens) {
-    thread_tokens[i++ % FLAGS_num_threads].push_back(token);
+    if (tablet_id_filters.empty() || ContainsKey(tablet_id_filters, token->tablet().id())) {
+      thread_tokens[i++ % FLAGS_num_threads].push_back(token);
+    }
   }
 
   worker_count.Store(FLAGS_num_threads);
   vector<thread> threads;
+  Stopwatch sw(Stopwatch::THIS_THREAD);
+  sw.start();
   for (i = 0; i < FLAGS_num_threads; ++i) {
       threads.emplace_back(&ScannerThread, thread_tokens[i]);
   }
@@ -660,7 +702,8 @@ Status ScanRows(const shared_ptr<KuduTable>& table, const string& predicates, co
     worker_count.IncrementBy(-1);
   }
 
-  LOG(INFO) << "Total count: " << total_count.Load();
+  sw.stop();
+  LOG(INFO) << "Total count " << total_count.Load() << " cost " << sw.elapsed().wall_seconds() << " seconds";
 
   return Status::OK();
 }
@@ -722,7 +765,9 @@ unique_ptr<Mode> BuildTableMode() {
       .AddRequiredParameter({ kTableNameArg, "Name of the table to copy" })
       .AddRequiredParameter({ kTargetMasterAddressesArg, "target cluster master_addresses of this table copy to" })
       .AddOptionalParameter("target_table")
+      .AddOptionalParameter("tablets")
       .AddOptionalParameter("predicates")
+      .AddOptionalParameter("write_type")
       .Build();
 
   unique_ptr<Action> scan_table =
@@ -738,6 +783,7 @@ unique_ptr<Mode> BuildTableMode() {
       .AddRequiredParameter({ kTableNameArg,
           "Key column name of the existing table, which will be used "
           "to limit the lower and upper bounds when scan rows."})
+      .AddOptionalParameter("tablets")
       .AddOptionalParameter("predicates")
       .AddOptionalParameter("columns")
       .AddOptionalParameter("scan_count")
