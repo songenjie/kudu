@@ -181,17 +181,23 @@ public class RemoteTablet implements Comparable<RemoteTablet> {
   @Nullable
   ServerInfo getClosestServerInfo() {
     synchronized (tabletServers) {
-      ServerInfo last = null;
+      ServerInfo result = null;
+
+      // Return the information on the closest(local) server.
+      // If none is local server, return the information on a 'randomly' picked server
+      // based on the first character of tabletId.
+      int randomIndex = (int)tabletId.charAt(0) % tabletServers.size();
+      int index = 0;
       for (ServerInfo e : tabletServers.values()) {
-        last = e;
+        if (index == randomIndex) {
+          result = e;
+        }
         if (e.isLocal()) {
           return e;
         }
+        index ++;
       }
-      // TODO(KUDU-2348) this doesn't return a random server, but rather returns
-      // whichever one's hashcode places it last. That might be the same
-      // "random" choice across all clients, which is not so good.
-      return last;
+      return result;
     }
   }
 

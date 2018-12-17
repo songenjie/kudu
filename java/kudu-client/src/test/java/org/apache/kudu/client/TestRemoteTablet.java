@@ -18,6 +18,7 @@ package org.apache.kudu.client;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -141,6 +142,18 @@ public class TestRemoteTablet {
     }
   }
 
+  // Clients mean to spread loads among all servers in the cluster.
+  // This ensures we can get two different servers for two constructed different tablets.
+  // This test ensures that remains true.
+  @Test
+  public void testGetReplicaSelectedServerInfoRandomness() {
+    RemoteTablet tablet1 = getTablet(0, -1, "a fake tablet");
+    String serverUuid1 = tablet1.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA).getUuid();
+    RemoteTablet tablet2 = getTablet(0, -1, "b fake tablet");
+    String serverUuid2 = tablet2.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA).getUuid();
+    assertNotEquals("getReplicaSelectedServerInfo was not random", serverUuid1, serverUuid2);
+  }
+
   @Test
   public void testToString() {
     RemoteTablet tablet = getTablet(0, 1);
@@ -153,10 +166,14 @@ public class TestRemoteTablet {
   }
 
   static RemoteTablet getTablet(int leaderIndex, int localReplicaIndex) {
+    return getTablet(leaderIndex, localReplicaIndex, "fake tablet");
+  }
+
+  static RemoteTablet getTablet(int leaderIndex, int localReplicaIndex, String tabletId) {
     Master.TabletLocationsPB.Builder tabletPb = Master.TabletLocationsPB.newBuilder();
 
     tabletPb.setPartition(ProtobufUtils.getFakePartitionPB());
-    tabletPb.setTabletId(ByteString.copyFromUtf8("fake tablet"));
+    tabletPb.setTabletId(ByteString.copyFromUtf8(tabletId));
     List<ServerInfo> servers = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
       InetAddress addr;
