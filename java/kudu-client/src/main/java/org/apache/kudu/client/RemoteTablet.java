@@ -197,21 +197,30 @@ public class RemoteTablet implements Comparable<RemoteTablet> {
     // TODO(wdberkeley): Eventually, the client might use the hierarchical
     // structure of a location to determine proximity.
     synchronized (tabletServers) {
-      ServerInfo last = null;
+      ServerInfo result = null;
       ServerInfo lastInSameLocation = null;
+
+      // Return the information on the closest(local) server.
+      // If none is local server, return the information on a 'randomly' picked server
+      // based on the first character of tabletId.
+      int randomIndex = (int)tabletId.charAt(0) % tabletServers.size();
+      int index = 0;
       for (ServerInfo e : tabletServers.values()) {
-        last = e;
         if (e.isLocal()) {
           return e;
         }
         if (e.inSameLocation(location)) {
           lastInSameLocation = e;
         }
+        if (index == randomIndex) {
+          result = e;
+        }
+        index ++;
       }
       if (lastInSameLocation != null) {
         return lastInSameLocation;
       }
-      return last;
+      return result;
     }
   }
 
