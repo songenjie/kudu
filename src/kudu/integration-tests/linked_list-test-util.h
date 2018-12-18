@@ -316,6 +316,7 @@ class PeriodicWebUIChecker {
     master_pages.emplace_back("/masters");
     master_pages.emplace_back("/mem-trackers");
     master_pages.emplace_back("/metrics");
+    master_pages.emplace_back("/metrics?origin=false&merge=true");
     master_pages.emplace_back("/stacks");
     master_pages.emplace_back("/tables");
     master_pages.emplace_back("/tablet-servers");
@@ -323,6 +324,7 @@ class PeriodicWebUIChecker {
     ts_pages.emplace_back("/maintenance-manager");
     ts_pages.emplace_back("/mem-trackers");
     ts_pages.emplace_back("/metrics");
+    ts_pages.emplace_back("/metrics?origin=false&merge=true");
     ts_pages.emplace_back("/scans");
     ts_pages.emplace_back("/stacks");
     ts_pages.emplace_back("/tablets");

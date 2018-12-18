@@ -2383,7 +2383,7 @@ TEST_F(ToolTest, TestScanTable) {
   string errout;
   NO_FATALS((RunActionStderrString(
               Substitute("table scan $0 $1", master_addr, kTableName), &errout)));
-  ASSERT_STR_CONTAINS(errout, Substitute("Total count: $0", ww.rows_inserted()));
+  ASSERT_STR_CONTAINS(errout, Substitute("Total count $0", ww.rows_inserted()));
 }
 
 Status CreateLegacyHmsTable(HmsClient* client,

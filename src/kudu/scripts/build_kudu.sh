@@ -29,6 +29,7 @@ else
   exit 1
 fi
 
+rm -rf ${BASE_DIR}/build/release
 mkdir -p ${BASE_DIR}/build/release
 cd ${BASE_DIR}/build/release
 ../../thirdparty/installed/common/bin/cmake -DCMAKE_BUILD_TYPE=release ../..
@@ -67,7 +68,6 @@ copy_file ${BASE_DIR}/build/latest/bin/kudu-master ${PACK_DIR}/kudu_master
 copy_file ${BASE_DIR}/build/latest/bin/kudu-tserver ${PACK_DIR}/kudu_tablet_server
 copy_file ${BASE_DIR}/build/latest/bin/kudu ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/kudu_metrics_collector_for_falcon.py ${PACK_DIR}/
-copy_file ${BASE_DIR}/src/kudu/scripts/logger.conf ${PACK_DIR}/
 copy_file -r ${BASE_DIR}/www ${PACK_DIR}/
 cd ${BASE_DIR}/build
 tar -czf ${PACKAGE} ${PACK_NAME}

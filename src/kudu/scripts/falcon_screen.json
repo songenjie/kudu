@@ -255,22 +255,6 @@
       ]
     },
     {
-      "screen": "${cluster.name} [host_table]",
-      "graphs": [
-        {
-          "title": "单节点metrics",
-          "endpoints": ["${for.each.tserver}"],
-          "counters": {
-            "level": "host_table",
-            "template": "replica_count"
-          },
-          "graph_type": "h",
-          "method": "",
-          "timespan": 86400
-        }
-      ]
-    },
-    {
       "screen": "${cluster.name} [table]",
       "graphs": [
         {
