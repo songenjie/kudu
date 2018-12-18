@@ -13,7 +13,7 @@ minos_client_path = ''  # minos client full path
 master_rpcs = ''        # master rpc addresses
 cluster = ''            # cluster name in minos config
 job = 'tablet_server'   # job name in minos config
-operate = 'stop'        # minos operate type, currently support: restart, stop
+operate = 'stop'        # minos operate type, currently support: restart, stop, rolling_update
 tasks = range(0, 5)     # an int element list, e.g. '[n]' for a single node, or 'range(m, n)' for several nodes
 flags = ''              # minos flags, e.g. '--update_config' for updating config
 known_unhealth_nodes = set()
@@ -94,6 +94,8 @@ check_parameter('The master rpc addresses are: %s? (y/n)', master_rpcs)
 check_parameter('You will operate on job: %s? (y/n)', job)
 check_parameter('You will operate on tasks: %s? (y/n)', tasks)
 check_parameter('The operate is: %s? (y/n)', operate)
+if operate == 'rolling_update' and flags.find('--update_package') == -1:
+    flags += ' --update_package'
 check_parameter('The extra flags are: %s? (y/n)', flags, True)
 check_parameter('The known unhealth nodes are: %s? (y/n)', ','.join(known_unhealth_nodes), True)
 
