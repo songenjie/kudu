@@ -46,6 +46,8 @@
 #include "kudu/util/stopwatch.h"
 #include "kudu/util/string_case.h"
 
+DEFINE_string(alter_args, "",
+              "Args of alter operation on the column.");
 DECLARE_string(columns);
 DEFINE_bool(list_tablets, false,
             "Include tablet and replica UUIDs in the output");
@@ -160,6 +162,7 @@ namespace {
 const char* const kTableNameArg = "table_name";
 const char* const kNewTableNameArg = "new_table_name";
 const char* const kColumnNameArg = "column_name";
+const char* const kAlterColumnTypeArg = "alter_type";
 const char* const kNewColumnNameArg = "new_column_name";
 const char* const kTargetMasterAddressesArg = "target_master_addresses";
 
@@ -215,6 +218,99 @@ Status RenameColumn(const RunnerContext& context) {
   RETURN_NOT_OK(CreateKuduClient(context, &client));
   unique_ptr<KuduTableAlterer> alterer(client->NewTableAlterer(table_name));
   alterer->AlterColumn(column_name)->RenameTo(new_column_name);
+  return alterer->Alter();
+}
+
+Status DeleteColumn(const RunnerContext& context) {
+  const string& table_name = FindOrDie(context.required_args, kTableNameArg);
+  const string& column_name = FindOrDie(context.required_args, kColumnNameArg);
+
+  shared_ptr<KuduClient> client;
+  RETURN_NOT_OK(CreateKuduClient(context, &client));
+  unique_ptr<KuduTableAlterer> alterer(client->NewTableAlterer(table_name));
+  alterer->DropColumn(column_name);
+  return alterer->Alter();
+}
+
+KuduValue* ParseValue(KuduColumnSchema::DataType type,
+                      const string& str_value) {
+  switch (type) {
+    case KuduColumnSchema::DataType::INT8:
+    case KuduColumnSchema::DataType::INT16:
+    case KuduColumnSchema::DataType::INT32:
+    case KuduColumnSchema::DataType::INT64:
+      if (!str_value.empty()) {
+        return KuduValue::FromInt(atoi64(str_value));
+      }
+      break;
+    case KuduColumnSchema::DataType::STRING:
+      if (!str_value.empty()) {
+        return KuduValue::CopyString(str_value);
+      }
+      break;
+    case KuduColumnSchema::DataType::FLOAT:
+      if (!str_value.empty()) {
+        return KuduValue::FromFloat(strtof(str_value.c_str(), nullptr));
+      }
+    case KuduColumnSchema::DataType::DOUBLE:
+      if (!str_value.empty()) {
+        return KuduValue::FromDouble(strtod(str_value.c_str(), nullptr));
+      }
+      break;
+    default:
+      CHECK(false) << Substitute("Unhandled type $0", type);
+  }
+
+  return nullptr;
+}
+
+enum class AlterType {
+  not_supported,
+  set_default,
+  remove_default
+};
+
+AlterType ParseAlterType(const std::string& type) {
+  if (type == "set_default") return AlterType::set_default;
+  if (type == "remove_default") return AlterType::remove_default;
+  LOG(FATAL) << "Not supported type: " << type;
+  return AlterType::not_supported;
+}
+
+Status ParseSetDefaultArgs(const std::string& args,
+                           KuduColumnSchema::DataType type,
+                           KuduValue** value) {
+  *value = ParseValue(type, args);
+
+  return Status::OK();
+}
+
+Status AlterColumn(const RunnerContext& context) {
+  const string& table_name = FindOrDie(context.required_args, kTableNameArg);
+  const string& column_name = FindOrDie(context.required_args, kColumnNameArg);
+  const string& alter_type = FindOrDie(context.required_args, kAlterColumnTypeArg);
+
+  shared_ptr<KuduClient> client;
+  RETURN_NOT_OK(CreateKuduClient(context, &client));
+  KuduSchema schema;
+  RETURN_NOT_OK(client->GetTableSchema(table_name, &schema));
+  KuduColumnSchema col_schema = schema.Column(column_name);
+
+  unique_ptr<KuduTableAlterer> alterer(client->NewTableAlterer(table_name));
+  switch (ParseAlterType(alter_type)) {
+    case AlterType::set_default: {
+      KuduValue* value = nullptr;
+      RETURN_NOT_OK(ParseSetDefaultArgs(FLAGS_alter_args, col_schema.type(), &value));
+      alterer->AlterColumn(column_name)->Default(value);
+      break;
+    }
+    case AlterType::remove_default: {
+      alterer->AlterColumn(column_name)->RemoveDefault();
+      break;
+    }
+    default:
+      LOG(FATAL) << "Not supported type: " << alter_type;
+  }
   return alterer->Alter();
 }
 
@@ -393,35 +489,6 @@ void MonitorThread() {
     }
     SleepFor(MonoDelta::FromMilliseconds(100));
   }
-}
-
-KuduValue* ParseValue(KuduColumnSchema::DataType type,
-                      const string& str_value) {
-  switch (type) {
-    case KuduColumnSchema::DataType::INT8:
-    case KuduColumnSchema::DataType::INT16:
-    case KuduColumnSchema::DataType::INT32:
-    case KuduColumnSchema::DataType::INT64:
-      if (!str_value.empty()) {
-        return KuduValue::FromInt(atoi64(str_value));
-      }
-      break;
-    case KuduColumnSchema::DataType::STRING:
-      if (!str_value.empty()) {
-        return KuduValue::CopyString(str_value);
-      }
-      break;
-    case KuduColumnSchema::DataType::FLOAT:
-    case KuduColumnSchema::DataType::DOUBLE:
-      if (!str_value.empty()) {
-        return KuduValue::FromDouble(strtod(str_value.c_str(), nullptr));
-      }
-      break;
-    default:
-      CHECK(false) << Substitute("Unhandled type $0", type);
-  }
-
-  return nullptr;
 }
 
 Status NewComparisonPredicate(const shared_ptr<KuduTable>& table,
@@ -750,6 +817,24 @@ unique_ptr<Mode> BuildTableMode() {
           .AddRequiredParameter({ kNewColumnNameArg, "New column name" })
           .Build();
 
+  unique_ptr<Action> delete_column =
+      ActionBuilder("delete_column", &DeleteColumn)
+          .Description("Delete a column")
+          .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
+          .AddRequiredParameter({ kTableNameArg, "Name of the table to alter" })
+          .AddRequiredParameter({ kColumnNameArg, "Name of the table column to delete" })
+          .Build();
+
+  unique_ptr<Action> alter_column =
+      ActionBuilder("alter_column", &AlterColumn)
+          .Description("Alter a column")
+          .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
+          .AddRequiredParameter({ kTableNameArg, "Name of the table to alter" })
+          .AddRequiredParameter({ kColumnNameArg, "Name of the table column to delete" })
+          .AddRequiredParameter({ kAlterColumnTypeArg, "Type of alter operation on the column" })
+          .AddOptionalParameter("alter_args")
+          .Build();
+
   unique_ptr<Action> list_tables =
       ActionBuilder("list", &ListTables)
       .Description("List tables")
@@ -795,6 +880,8 @@ unique_ptr<Mode> BuildTableMode() {
       .AddAction(std::move(delete_table))
       .AddAction(std::move(rename_table))
       .AddAction(std::move(rename_column))
+      .AddAction(std::move(delete_column))
+      .AddAction(std::move(alter_column))
       .AddAction(std::move(list_tables))
       .AddAction(std::move(copy_table))
       .AddAction(std::move(scan_table))
