@@ -47,6 +47,7 @@
 #include "kudu/tools/tool_action_common.h"
 #include "kudu/util/jsonreader.h"
 #include "kudu/util/status.h"
+#include "kudu/util/string_case.h"
 
 using kudu::client::KuduClient;
 using kudu::client::KuduClientBuilder;
@@ -56,6 +57,7 @@ using kudu::client::KuduScanToken;
 using kudu::client::KuduScanTokenBuilder;
 using kudu::client::KuduScanner;
 using kudu::client::KuduSchema;
+using kudu::client::KuduColumnStorageAttributes;
 using kudu::client::KuduTable;
 using kudu::client::KuduTableAlterer;
 using kudu::client::KuduValue;
@@ -437,13 +439,18 @@ KuduValue* ParseValue(KuduColumnSchema::DataType type,
 enum class AlterType {
   not_supported,
   set_default,
-  remove_default
+  remove_default,
+  set_compression,
+  set_encoding,
+  set_block_size
 };
 
 AlterType ParseAlterType(const std::string& type) {
   if (type == "set_default") return AlterType::set_default;
   if (type == "remove_default") return AlterType::remove_default;
-  LOG(FATAL) << "Not supported type: " << type;
+  if (type == "set_compression") return AlterType::set_compression;
+  if (type == "set_encoding") return AlterType::set_encoding;
+  if (type == "set_block_size") return AlterType::set_block_size;
   return AlterType::not_supported;
 }
 
@@ -451,6 +458,54 @@ Status ParseSetDefaultArgs(const std::string& args,
                            KuduColumnSchema::DataType type,
                            KuduValue** value) {
   *value = ParseValue(type, args);
+  if (*value == nullptr) {
+    return Status::InvalidArgument(
+        Substitute("Failed to parse value from $0, type $1", args, type));
+  }
+
+  return Status::OK();
+}
+
+Status ParseSetEncodingArgs(const std::string& args,
+                            KuduColumnStorageAttributes::EncodingType& encoding_type) {
+  std::string encoding_type_uc;
+  ToUpperCase(args, &encoding_type_uc);
+  if (encoding_type_uc == "AUTO_ENCODING") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::AUTO_ENCODING;
+  } else if (encoding_type_uc == "PLAIN_ENCODING") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::PLAIN_ENCODING;
+  } else if (encoding_type_uc == "PREFIX_ENCODING") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::PREFIX_ENCODING;
+  } else if (encoding_type_uc == "RLE") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::RLE;
+  } else if (encoding_type_uc == "DICT_ENCODING") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::DICT_ENCODING;
+  } else if (encoding_type_uc == "BIT_SHUFFLE") {
+    encoding_type = KuduColumnStorageAttributes::EncodingType::BIT_SHUFFLE;
+  } else {
+    return Status::InvalidArgument(Substitute("Failed to parse encoding type from $0", args));
+  }
+
+  return Status::OK();
+}
+
+Status ParseSetCompressionArgs(const std::string& args,
+                               KuduColumnStorageAttributes::CompressionType& compression_type) {
+  std::string compression_type_uc;
+  ToUpperCase(args, &compression_type_uc);
+  if (compression_type_uc == "DEFAULT_COMPRESSION") {
+    compression_type = KuduColumnStorageAttributes::CompressionType::DEFAULT_COMPRESSION;
+  } else if (compression_type_uc == "NO_COMPRESSION") {
+    compression_type = KuduColumnStorageAttributes::CompressionType::NO_COMPRESSION;
+  } else if (compression_type_uc == "SNAPPY") {
+    compression_type = KuduColumnStorageAttributes::CompressionType::SNAPPY;
+  } else if (compression_type_uc == "LZ4") {
+    compression_type = KuduColumnStorageAttributes::CompressionType::LZ4;
+  } else if (compression_type_uc == "ZLIB") {
+    compression_type = KuduColumnStorageAttributes::CompressionType::ZLIB;
+  } else {
+    return Status::InvalidArgument(Substitute("Failed to parse compression type from $0", args));
+  }
 
   return Status::OK();
 }
@@ -478,8 +533,26 @@ Status AlterColumn(const RunnerContext& context) {
       alterer->AlterColumn(column_name)->RemoveDefault();
       break;
     }
+    case AlterType::set_compression: {
+      KuduColumnStorageAttributes::CompressionType compression_type
+          = KuduColumnStorageAttributes::CompressionType::DEFAULT_COMPRESSION;
+      RETURN_NOT_OK(ParseSetCompressionArgs(FLAGS_alter_args, compression_type));
+      alterer->AlterColumn(column_name)->Compression(compression_type);
+      break;
+    }
+    case AlterType::set_encoding: {
+      KuduColumnStorageAttributes::EncodingType encoding_type
+          = KuduColumnStorageAttributes::EncodingType::AUTO_ENCODING;
+      RETURN_NOT_OK(ParseSetEncodingArgs(FLAGS_alter_args, encoding_type));
+      alterer->AlterColumn(column_name)->Encoding(encoding_type);
+      break;
+    }
+    case AlterType::set_block_size: {
+      alterer->AlterColumn(column_name)->BlockSize(atoi32(FLAGS_alter_args));
+      break;
+    }
     default:
-      LOG(FATAL) << "Not supported type: " << alter_type;
+      return Status::InvalidArgument(Substitute("Not supported type: $0", alter_type));
   }
   return alterer->Alter();
 }
