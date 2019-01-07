@@ -131,36 +131,32 @@ private class RowIterator(
     val rowsRead: LongAccumulator)
     extends Iterator[Row] {
 
-  private var currentIterator: RowResultIterator = RowResultIterator.empty
-  private var lastKeepAliveTimeMs = System.currentTimeMillis()
-
-  /**
-   * Calls the keepAlive API on the current scanner if the keepAlivePeriodMs has passed.
-   */
-  private def KeepKuduScannerAlive(): Unit = {
-    val now = System.currentTimeMillis
-    if (now >= lastKeepAliveTimeMs + keepAlivePeriodMs && !scanner.isClosed) {
-      scanner.keepAlive()
-      lastKeepAliveTimeMs = now
-    }
-  }
+  private var currentIterator: RowResultIterator = null
 
   override def hasNext: Boolean = {
-    while (!currentIterator.hasNext && scanner.hasMoreRows) {
-      if (TaskContext.get().isInterrupted()) {
-        throw new RuntimeException("Kudu task interrupted")
-      }
+    while ((currentIterator != null && !currentIterator.hasNext && scanner.hasMoreRows) ||
+      (scanner.hasMoreRows && currentIterator == null)) {
       currentIterator = scanner.nextRows()
       // Update timestampAccumulator with the client's last propagated
       // timestamp on each executor.
       kuduContext.timestampAccumulator.add(kuduContext.syncClient.getLastPropagatedTimestamp)
       rowsRead.add(currentIterator.getNumRows)
     }
-    KeepKuduScannerAlive()
     currentIterator.hasNext
   }
 
-  private def get(rowResult: RowResult, i: Int): Any = {
+  override def next(): Row = new KuduRow(currentIterator.next())
+}
+
+/**
+ * A Spark SQL [[Row]] which wraps a Kudu [[RowResult]].
+ * @param rowResult the wrapped row result
+ */
+private[spark] class KuduRow(private val rowResult: RowResult = null) extends Row {
+
+  override def length: Int = rowResult.getColumnProjection.getColumnCount
+
+  override def get(i: Int): Any = {
     if (rowResult.isNull(i)) null
     else
       rowResult.getColumnType(i) match {
@@ -178,13 +174,7 @@ private class RowIterator(
       }
   }
 
-  override def next(): Row = {
-    val rowResult = currentIterator.next()
-    val columnCount = rowResult.getColumnProjection.getColumnCount
-    val columns = Array.ofDim[Any](columnCount)
-    for (i <- 0 until columnCount) {
-      columns(i) = get(rowResult, i)
-    }
-    Row.fromSeq(columns)
-  }
+  override def copy(): Row = Row.fromSeq(Range(0, length).map(get))
+
+  override def toString(): String = rowResult.toString
 }

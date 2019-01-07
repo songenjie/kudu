@@ -49,7 +49,7 @@ class StreamingTest extends KuduTestSuite {
       .option("kudu.master", harness.getMasterAddressesAsString)
       .option("kudu.table", simpleTableName)
       .option("checkpointLocation", checkpointDir.toFile.getCanonicalPath)
-      .outputMode(OutputMode.Update)
+      .outputMode(OutputMode.Append())
       .start()
 
     def verifyOutput(expectedData: Seq[(Int, String)]): Unit = {

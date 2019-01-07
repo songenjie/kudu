@@ -21,6 +21,8 @@ import java.math.BigDecimal
 import java.net.InetAddress
 import java.sql.Timestamp
 
+import org.apache.kudu.ColumnSchema
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 import org.apache.spark.rdd.RDD
@@ -39,6 +41,7 @@ import org.apache.kudu.spark.kudu.KuduWriteOptions._
 import org.apache.kudu.spark.kudu.SparkUtil._
 import org.apache.spark.sql.execution.streaming.Sink
 import org.apache.spark.sql.streaming.OutputMode
+import org.apache.spark.sql.catalyst.expressions.AttributeReference
 
 /**
  * Data source for integration with Spark's [[DataFrame]] API.
@@ -65,6 +68,7 @@ class DefaultSource
   val SOCKET_READ_TIMEOUT_MS = "kudu.socketReadTimeoutMs"
   val BATCH_SIZE = "kudu.batchSize"
   val KEEP_ALIVE_PERIOD_MS = "kudu.keepAlivePeriodMs"
+  val TABLE_ALIAS = "kudu.table.alias"
 
   /**
    * A nice alias for the data source so that when specifying the format
@@ -105,12 +109,13 @@ class DefaultSource
     val schemaOption = Option(schema)
     val readOptions = getReadOptions(parameters)
     val writeOptions = getWriteOptions(parameters)
-
+    val alias = parameters.get(TABLE_ALIAS)
     new KuduRelation(
       tableName,
       kuduMaster,
       operationType,
       schemaOption,
+      alias,
       readOptions,
       writeOptions
     )(sqlContext)
@@ -248,9 +253,11 @@ class KuduRelation(
     val masterAddrs: String,
     val operationType: OperationType,
     val userSchema: Option[StructType],
+    val alias: Option[String],
     val readOptions: KuduReadOptions = new KuduReadOptions,
     val writeOptions: KuduWriteOptions = new KuduWriteOptions)(val sqlContext: SQLContext)
-    extends BaseRelation with PrunedFilteredScan with InsertableRelation {
+    extends BaseRelation with PrunedFilteredScan with InsertableRelation with UpdatetableRelation
+    with DeletetableRelation {
 
   private val context: KuduContext =
     new KuduContext(masterAddrs, sqlContext.sparkContext, readOptions.socketReadTimeoutMs)
@@ -267,7 +274,34 @@ class KuduRelation(
    * @return schema generated from the Kudu table's schema
    */
   override def schema: StructType = {
-    sparkSchema(table.getSchema, userSchema.map(_.fieldNames))
+    val fields =
+      userSchema match {
+        case Some(x) =>
+          x.fields
+            .map(uf => table.getSchema.getColumn(uf.name))
+            .map(kuduColumnToSparkField)
+        case None =>
+          table.getSchema.getColumns.asScala.map(kuduColumnToSparkField).toArray
+      }
+
+    val sqlTableName = if (!tableName.contains(".")) {
+      tableName
+    } else {
+      tableName.split('.')(1)
+    }
+
+    new StructType(fields) {
+      override def toAttributes: Seq[AttributeReference] =
+        map(
+          f =>
+            AttributeReference(f.name, f.dataType, f.nullable, f.metadata)(
+              qualifier = Some(alias.getOrElse(sqlTableName))))
+    }
+  }
+
+  def kuduColumnToSparkField: (ColumnSchema) => StructField = { columnSchema =>
+    val sparkType = kuduTypeToSparkType(columnSchema.getType, columnSchema.getTypeAttributes)
+    new StructField(columnSchema.getName, sparkType, columnSchema.isNullable)
   }
 
   /**
@@ -424,6 +458,32 @@ class KuduRelation(
       throw new UnsupportedOperationException("overwrite is not yet supported")
     }
     context.writeRows(data, tableName, operationType, writeOptions)
+  }
+  override def insertWithIgnoreDuplicateRowsOptions(
+      data: DataFrame,
+      overwrite: Boolean,
+      ignoreDuplicate: Boolean): Unit = {
+    if (ignoreDuplicate) {
+      context.insertIgnoreRows(data, tableName)
+    } else {
+      insert(data, overwrite)
+    }
+  }
+
+  override def checkInvalidKeySetting(columns: Map[String, String]): Unit = {
+    val schema = table.getSchema
+    val keyColumns = columns.keys.filter(columnName => schema.getColumn(columnName).isKey)
+    if (keyColumns.nonEmpty) {
+      throw new IllegalArgumentException("key columns cannot be updated")
+    }
+  }
+
+  override def update(data: DataFrame, columns: Map[String, String]): Unit = {
+    context.updateRows(data, tableName, columns)
+  }
+
+  override def delete(data: DataFrame): Unit = {
+    context.writeRows(data, tableName, Delete)
   }
 }
 
