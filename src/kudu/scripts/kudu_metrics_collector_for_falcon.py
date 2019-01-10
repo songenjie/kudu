@@ -9,6 +9,7 @@ import os
 import signal
 import sys
 import StringIO
+import threading
 import time
 import traceback
 import types
@@ -484,6 +485,27 @@ def main_loop(args):
             LOG.warn('Collect timeout, cost %f secs this time' % used_time)
 
 
+def rebalance_cluster(args):
+    LOG.info('Start to rebalance_cluster()')
+    global IS_RUNNING
+    while IS_RUNNING:
+        if time.strftime("%H:%M", time.localtime()) == args.rebalance_time:
+            start = time.time()
+            cmd = 'kudu cluster rebalance %s -tables=%s'\
+              ' 2>/dev/null' % (args.kudu_master_rpcs, args.rebalance_tables)
+            LOG.info('request cluster rebalance info: %s' % cmd)
+            status, output = commands.getstatusoutput(cmd)
+            if status == 0 or status == 256:
+                LOG.info('rebalance output: %s' % (output))
+            else:
+                LOG.error('failed to perfome rebalance. status: %d, output: %s' % (status, output))
+            end = time.time()
+            used_time = end - start
+            left_time = 3600*24 - used_time
+            LOG.info('Sleep for %s seconds' % left_time)
+            interruptable_sleep(left_time)
+
+
 def parse_command_line():
     LOG.info('Start to parse_command_line()')
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -512,6 +534,15 @@ def parse_command_line():
 
     parser.add_argument('--metrics', type=str, help='Metrics to collect',
                         required=False, default='')
+                        
+    parser.add_argument('--rebalance_cluster', type=str, help='Whether to rebalance cluster regularly',
+                        required=False, default=False)
+
+    parser.add_argument('--rebalance_tables', type=str, help='Table names to rebalance',
+                        required=False, default='')
+
+    parser.add_argument('--rebalance_time', type=str, help='Time to perform cluster rebalance, format is HH:MM (e.g.00:00)',
+                        required=False, default='00:00')
 
     args = parser.parse_args()
     args.cluster_name = args.cluster_name.replace(u'\ufeff', '')
@@ -532,6 +563,12 @@ def main():
     global args
     args = parse_command_line()
     try:
+        if args.rebalance_cluster:
+            hour,minute = args.rebalance_time.split(':')
+            if int(hour) in range(0,24) and int(minute) in range(0,60):
+                # perform cluster rebalance in another thread
+                t = threading.Thread(target=rebalance_cluster, args=(args,))
+                t.start()
         main_loop(args)
     except KeyboardInterrupt:
         LOG.warn('Collector terminated.')
