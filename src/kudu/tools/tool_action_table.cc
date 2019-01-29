@@ -513,13 +513,13 @@ void CopyThread(const RunnerContext& context, const KuduSchema& table_schema, co
   // target table
   const string& target_table_name = FLAGS_target_table.empty() ? FindOrDie(context.required_args, kTableNameArg) : FLAGS_target_table;
   shared_ptr<KuduClient> target_client;
-  DCHECK_OK(CreateTargetKuduClient(context, &target_client));
+  CHECK_OK(CreateTargetKuduClient(context, &target_client));
   shared_ptr<KuduTable> target_table;
-  DCHECK_OK(target_client->OpenTable(target_table_name, &target_table));
+  CHECK_OK(target_client->OpenTable(target_table_name, &target_table));
 
   shared_ptr<KuduSession> session(target_client->NewSession());
-  DCHECK_OK(session->SetFlushMode(KuduSession::AUTO_FLUSH_BACKGROUND));
-  DCHECK_OK(session->SetErrorBufferSpace(1024));
+  CHECK_OK(session->SetFlushMode(KuduSession::AUTO_FLUSH_BACKGROUND));
+  CHECK_OK(session->SetErrorBufferSpace(1024));
   session->SetTimeoutMillis(30000);
 
   for (auto token : tokens) {
@@ -527,22 +527,22 @@ void CopyThread(const RunnerContext& context, const KuduSchema& table_schema, co
     sw.start();
 
     KuduScanner *scanner_ptr;
-    DCHECK_OK(token->IntoKuduScanner(&scanner_ptr));
+    CHECK_OK(token->IntoKuduScanner(&scanner_ptr));
     unique_ptr<KuduScanner> scanner(scanner_ptr);
-    DCHECK_OK(scanner->Open());
+    CHECK_OK(scanner->Open());
 
     int count = 0;
     while (scanner->HasMoreRows()) {
       KuduScanBatch batch;
-      DCHECK_OK(scanner->NextBatch(&batch));
+      CHECK_OK(scanner->NextBatch(&batch));
       count += batch.NumRows();
       for (auto it = batch.begin(); it != batch.end(); ++it) {
         KuduScanBatch::RowPtr row(*it);
 
-        DCHECK_OK(AddRow(target_table, table_schema, row, session));
+        CHECK_OK(AddRow(target_table, table_schema, row, session));
       }
       Status s = session->Flush();
-      DCHECK_OK(CheckFlush(session, s));
+      CHECK_OK(CheckFlush(session, s));
 
       total_count.IncrementBy(batch.NumRows());
     }
@@ -775,14 +775,14 @@ void ScannerThread(const vector<KuduScanToken*>& tokens) {
     sw.start();
 
     KuduScanner *scanner_ptr;
-    DCHECK_OK(token->IntoKuduScanner(&scanner_ptr));
+    CHECK_OK(token->IntoKuduScanner(&scanner_ptr));
     unique_ptr<KuduScanner> scanner(scanner_ptr);
-    DCHECK_OK(scanner->Open());
+    CHECK_OK(scanner->Open());
 
     int count = 0;
     while (scanner->HasMoreRows()) {
       KuduScanBatch batch;
-      DCHECK_OK(scanner->NextBatch(&batch));
+      CHECK_OK(scanner->NextBatch(&batch));
       count += batch.NumRows();
       if (FLAGS_show_value) {
         for (auto it = batch.begin(); it != batch.end(); ++it) {
