@@ -66,6 +66,12 @@ using strings::Substitute;
 DECLARE_string(tables);
 DECLARE_string(tablets);
 
+DEFINE_string(blacklist_tservers, "",
+              "Tservers to be neglected by rebalancer (comma-separated list of UUIDs), "
+              "rebalancer will move all replicas on blacklist tservers "
+              "to other tservers before rebalancing. "
+              "If not specified, rebalance all tablet servers.");
+
 DEFINE_string(sections, "*",
               "Sections to print (comma-separated list of sections, "
               "available sections are: MASTER_SUMMARIES, TSERVER_SUMMARIES, "
@@ -283,6 +289,8 @@ Status EvaluateMoveSingleReplicasFlag(const vector<string>& master_addresses,
 // can be the source and the destination of no more than the specified number of
 // move operations.
 Status RunRebalance(const RunnerContext& context) {
+  const vector<string> blacklist_tservers =
+      Split(FLAGS_blacklist_tservers, ",", strings::SkipEmpty());
   const vector<string> master_addresses = Split(
       FindOrDie(context.required_args, kMasterAddressesArg), ",");
   const vector<string> table_filters =
@@ -295,6 +303,7 @@ Status RunRebalance(const RunnerContext& context) {
   RETURN_NOT_OK(EvaluateMoveSingleReplicasFlag(master_addresses,
                                                &move_single_replicas));
   Rebalancer rebalancer(Rebalancer::Config(
+      blacklist_tservers,
       master_addresses,
       table_filters,
       FLAGS_max_moves_per_server,
@@ -393,6 +402,7 @@ unique_ptr<Mode> BuildClusterMode() {
         .Description(desc)
         .ExtraDescription(extra_desc)
         .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
+        .AddOptionalParameter("blacklist_tservers")
         .AddOptionalParameter("disable_policy_fixer")
         .AddOptionalParameter("disable_cross_location_rebalancing")
         .AddOptionalParameter("disable_intra_location_rebalancing")

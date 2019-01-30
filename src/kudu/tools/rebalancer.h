@@ -65,7 +65,8 @@ class Rebalancer {
   struct Config {
     static constexpr double kLoadImbalanceThreshold = 1.0;
 
-    Config(std::vector<std::string> master_addresses = {},
+    Config(std::vector<std::string> blacklist_tservers = {},
+           std::vector<std::string> master_addresses = {},
            std::vector<std::string> table_filters = {},
            size_t max_moves_per_server = 5,
            size_t max_staleness_interval_sec = 300,
@@ -76,6 +77,12 @@ class Rebalancer {
            bool run_cross_location_rebalancing = true,
            bool run_intra_location_rebalancing = true,
            double load_imbalance_threshold = kLoadImbalanceThreshold);
+
+    // UUIDs of blacklist tservers. If empty, the whole cluster will be
+    // rebalanced and replicas would be moved to any tserver. If not empty,
+    // replicas on blacklist taservers will be moved to other tservers and
+    // cluster rebalance operation will ignore tservers in blacklist.
+    std::vector<std::string> blacklist_tservers;
 
     // Kudu masters' RPC endpoints.
     std::vector<std::string> master_addresses;
@@ -426,9 +433,13 @@ class Rebalancer {
   // 'tablet_ids' container and tablet server UUIDs TableReplicaMove::from and
   // TableReplica::to correspondingly. If no suitable tablet replicas are found,
   // 'tablet_ids' will be empty with the result status of Status::OK().
+  //
+  // 'is_healthy_move' indicates whether healthy tablets of a specific table can
+  // be found at a specific server(move.from).
   static Status FindReplicas(const TableReplicaMove& move,
                              const ClusterRawInfo& raw_info,
-                             std::vector<std::string>* tablet_ids);
+                             std::vector<std::string>* tablet_ids,
+                             bool *is_healthy_move);
 
   // Filter move operations in 'replica_moves': remove all operations that would
   // involve moving replicas of tablets which are in 'scheduled_moves'. The
@@ -445,6 +456,10 @@ class Rebalancer {
       const TableReplicaMove& move,
       std::vector<std::string>* tablet_ids);
 
+  // Print information on blacklist tservers.
+  Status PrintBlacklistTserversStats(const ClusterInfo& ci,
+                                     std::ostream& out) const;
+
   // Print information on the cross-location balance.
   Status PrintCrossLocationBalanceStats(const ClusterInfo& ci,
                                         std::ostream& out) const;
@@ -459,6 +474,10 @@ class Rebalancer {
 
   Status PrintPolicyViolationInfo(const ClusterRawInfo& raw_info,
                                   std::ostream& out) const;
+
+  // Check whether it is safe to remove blacklist tservers from cluster.
+  Status CheckRemovingBLTserversSafe(const ClusterRawInfo& raw_info,
+                                     const ClusterInfo& info) const;
 
   // Convert the 'raw' information about the cluster into information suitable
   // for the input of the high-level rebalancing algorithm.
@@ -482,6 +501,7 @@ class Rebalancer {
   Status GetClusterRawInfo(const boost::optional<std::string>& location,
                            ClusterRawInfo* raw_info);
 
+  // Unused function.
   Status GetNextMoves(Runner* runner,
                       std::vector<ReplicaMove>* replica_moves);
 
