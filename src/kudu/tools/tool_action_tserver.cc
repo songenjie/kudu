@@ -145,7 +145,7 @@ Status ListTServers(const RunnerContext& context) {
       }
     } else if (boost::iequals(column, "start_time")) {
       for (const auto& server : servers) {
-        values.emplace_back(std::move(pb_util::ParseStartTime(server.registration())));
+        values.emplace_back(StartTimeToString(server.registration()));
       }
     } else {
       return Status::InvalidArgument("unknown column (--columns)", column);
