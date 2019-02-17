@@ -90,6 +90,7 @@ DEFINE_bool(list_tablets, false,
 DEFINE_bool(modify_external_catalogs, true,
             "Whether to modify external catalogs, such as the Hive Metastore, "
             "when renaming or dropping a table.");
+DECLARE_bool(show_values);
 DECLARE_string(tables);
 
 namespace kudu {
@@ -142,22 +143,11 @@ class TableLister {
 
 namespace {
 
-const char* const kTableNameArg = "table_name";
 const char* const kNewTableNameArg = "new_table_name";
 const char* const kColumnNameArg = "column_name";
 const char* const kAlterColumnTypeArg = "alter_type";
 const char* const kNewColumnNameArg = "new_column_name";
 const char* const kKeyArg = "primary_key";
-
-Status CreateKuduClient(const RunnerContext& context,
-                        client::sp::shared_ptr<KuduClient>* client) {
-  const string& master_addresses_str = FindOrDie(context.required_args,
-                                                 kMasterAddressesArg);
-  vector<string> master_addresses = Split(master_addresses_str, ",");
-  return KuduClientBuilder()
-             .master_server_addrs(master_addresses)
-             .Build(client);
-}
 
 Status DeleteTable(const RunnerContext& context) {
   const string& table_name = FindOrDie(context.required_args, kTableNameArg);
@@ -576,7 +566,9 @@ Status ScanTable(const RunnerContext &context) {
 
   const string& table_name = FindOrDie(context.required_args, kTableNameArg);
 
+  FLAGS_show_values = true;
   TableScanner scanner(client, table_name);
+  scanner.SetOutput(&cout);
   return scanner.Run();
 }
 
@@ -653,7 +645,6 @@ unique_ptr<Mode> BuildTableMode() {
       .AddOptionalParameter("fill_cache")
       .AddOptionalParameter("num_threads")
       .AddOptionalParameter("predicates")
-      .AddOptionalParameter("show_value")
       .AddOptionalParameter("tablets")
       .Build();
 
