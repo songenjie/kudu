@@ -146,7 +146,7 @@ Status ListMasters(const RunnerContext& context) {
       }
     } else if (boost::iequals(column, "start_time")) {
       for (const auto& master : masters) {
-        values.emplace_back(std::move(pb_util::ParseStartTime(master.registration())));
+        values.emplace_back(StartTimeToString(master.registration()));
       }
     } else {
       return Status::InvalidArgument("unknown column (--columns)", column);
