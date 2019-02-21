@@ -38,7 +38,6 @@
 #include "kudu/consensus/metadata.pb.h"
 #include "kudu/gutil/macros.h"
 #include "kudu/gutil/strings/substitute.h"
-#include "kudu/rpc/messenger.h"
 #include "kudu/server/server_base.pb.h"
 #include "kudu/tablet/metadata.pb.h"
 #include "kudu/tablet/tablet.pb.h"  // IWYU pragma: keep
@@ -48,6 +47,9 @@
 namespace kudu {
 
 class MonoDelta;
+namespace rpc {
+class Messenger;
+}
 
 namespace tools {
 

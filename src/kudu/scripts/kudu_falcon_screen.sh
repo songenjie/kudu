@@ -55,7 +55,7 @@ if [[ ${TSERVER_COUNT} -eq 0 ]]; then
 fi
 
 # get table list
-python ${BASE_DIR}/src/kudu/scripts/kudu_metrics_collector_for_falcon.py --cluster_name=any --kudu_master_rpcs=${MASTERS} --falcon_url= --metrics=bytes_flushed,on_disk_data_size,scanner_rows_returned --local_stat=True > /tmp/$UID.${PID}.kudu.metric_table_value
+python ${BASE_DIR}/src/kudu/scripts/kudu_metrics_collector_for_falcon.py --cluster_name=any --kudu_master_rpcs=${MASTERS} --falcon_url= --metrics=bytes_flushed,on_disk_data_size,scanner_rows_returned --local_stat > /tmp/$UID.${PID}.kudu.metric_table_value
 if [[ $? -ne 0 ]]; then
     echo "ERROR: kudu_metrics_collector_for_falcon.py execute failed"
     exit 1
