@@ -15,15 +15,15 @@ function copy_file() {
   fi  
 }
 
-KUDU_VERSION=`cat ${BASE_DIR}version.txt`
+KUDU_VERSION=`cat ${BASE_DIR}/version.txt`
 OS=`lsb_release -d | awk '{print $2}'`
 echo "Start to build kudu $KUDU_VERSION on $OS"
 
 if [[ "$OS" == "CentOS" ]]; then
-  build-support/enable_devtoolset.sh
-  thirdparty/build-if-necessary.sh
+  ${BASE_DIR}/build-support/enable_devtoolset.sh
+  ${BASE_DIR}/thirdparty/build-if-necessary.sh
 elif [[ "$OS" == "Ubuntu" ]]; then
-  thirdparty/build-if-necessary.sh
+  ${BASE_DIR}/thirdparty/build-if-necessary.sh
 else
   echo "ERROR: unsupported OS: $OS in $0"
   exit 1
@@ -67,7 +67,13 @@ echo "Coping files to $PACK_DIR"
 copy_file ${BASE_DIR}/build/latest/bin/kudu-master ${PACK_DIR}/kudu_master
 copy_file ${BASE_DIR}/build/latest/bin/kudu-tserver ${PACK_DIR}/kudu_tablet_server
 copy_file ${BASE_DIR}/build/latest/bin/kudu ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/batch_operate_on_tables.sh ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.json ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.py ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/kudu_falcon_screen.sh ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/kudu_metrics_collector_for_falcon.py ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/minos_control_server.py ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/start_local_kudu.sh ${PACK_DIR}/
 copy_file -r ${BASE_DIR}/www ${PACK_DIR}/
 cd ${BASE_DIR}/build
 tar -czf ${PACKAGE} ${PACK_NAME}

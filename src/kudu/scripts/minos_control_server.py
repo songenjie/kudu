@@ -106,9 +106,10 @@ for task in tasks:
         exit()
 
     print(time_header() + 'Start to operate on task %d' % task)
-    status, output = commands.getstatusoutput(
-        '%s/deploy %s kudu %s --job %s --task %d --skip_confirm %s'
-        % (minos_client_path, operate, cluster, job, task, flags))
+    cmd = ('%s/deploy %s kudu %s --job %s --task %d --skip_confirm %s'
+          % (minos_client_path, operate, cluster, job, task, flags))
+    print(cmd)
+    status, output = commands.getstatusoutput(cmd)
     print(time_header() + 'operate status: ' + str(status))
     print(output)
     if operate == 'stop':
