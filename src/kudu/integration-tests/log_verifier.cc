@@ -155,7 +155,11 @@ Status LogVerifier::VerifyCommittedOpIdsMatch() {
         if (this_ts_term == kNotOnThisServer) continue; // this TS doesn't have the op
         if (expected_term == boost::none) {
           expected_term = this_ts_term;
+// Suppress false positive about 'expected_term' used when uninitialized.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
         } else if (this_ts_term != expected_term) {
+#pragma GCC diagnostic pop
           string err = Substitute("Mismatch found for index $0, [", index);
           for (int i = 0; i < cluster_->num_tablet_servers(); i++) {
             if (i != 0) err += ", ";

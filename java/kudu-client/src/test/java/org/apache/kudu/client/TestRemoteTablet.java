@@ -228,10 +228,6 @@ public class TestRemoteTablet {
     return getTablet(leaderIndex, -1, -1);
   }
 
-  static RemoteTablet getTablet(int leaderIndex, int localReplicaIndex) {
-    return getTablet(leaderIndex, localReplicaIndex, -1, "fake tablet");
-  }
-
   static RemoteTablet getTablet(int leaderIndex,
                                 int localReplicaIndex,
                                 int sameLocationReplicaIndex) {

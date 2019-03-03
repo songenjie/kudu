@@ -657,13 +657,17 @@ void CreateRandomDeltas(const Schema& schema,
   // the deletion status of each row directly.
   faststring buf;
   RowChangeListEncoder encoder(&buf);
-  bool is_deleted;
+  bool is_deleted = false;
   boost::optional<rowid_t> prev_row_idx;
   for (i = 0; i < sorted_keys.size(); i++) {
     encoder.Reset();
     const auto& k = sorted_keys[i];
 
+// Suppress false positive about 'prev_row_idx' used when uninitialized.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     if (!prev_row_idx || prev_row_idx != k.row_idx()) {
+#pragma GCC diagnostic pop
       // New row; reset the deletion status.
       is_deleted = false;
       prev_row_idx = k.row_idx();

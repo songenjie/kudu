@@ -46,7 +46,7 @@ std::string Status::CodeAsString() const {
     return "OK";
   }
 
-  const char* type;
+  const char* type = nullptr;
   switch (code()) {
     case kOk:
       type = "OK";

@@ -54,7 +54,11 @@ Status ParseHiveTableIdentifier(const string& table_name,
       }
     }
   }
+// Suppress false positive about 'separator_idx' used when uninitialized.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
   if (!separator_idx || *separator_idx == 0 || *separator_idx == table_name.size() - 1) {
+#pragma GCC diagnostic pop
     return Status::InvalidArgument(kInvalidTableError, table_name);
   }
 

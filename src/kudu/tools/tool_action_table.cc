@@ -17,10 +17,8 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <stdlib.h>
 
 #include <iostream>
-#include <map>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -60,6 +58,7 @@
 using kudu::client::KuduClient;
 using kudu::client::KuduClientBuilder;
 using kudu::client::KuduColumnSchema;
+using kudu::client::KuduColumnStorageAttributes;
 using kudu::client::KuduPredicate;
 using kudu::client::KuduScanToken;
 using kudu::client::KuduScanTokenBuilder;
@@ -406,6 +405,24 @@ Status DeleteColumn(const RunnerContext& context) {
   return alterer->Alter();
 }
 
+enum class AlterType {
+  not_supported,
+  set_default,
+  remove_default,
+  set_compression,
+  set_encoding,
+  set_block_size
+};
+
+AlterType ParseAlterType(const std::string& type) {
+  if (type == "set_default") return AlterType::set_default;
+  if (type == "remove_default") return AlterType::remove_default;
+  if (type == "set_compression") return AlterType::set_compression;
+  if (type == "set_encoding") return AlterType::set_encoding;
+  if (type == "set_block_size") return AlterType::set_block_size;
+  return AlterType::not_supported;
+}
+
 KuduValue* ParseValue(KuduColumnSchema::DataType type,
                       const string& str_value) {
   switch (type) {
@@ -424,8 +441,9 @@ KuduValue* ParseValue(KuduColumnSchema::DataType type,
       break;
     case KuduColumnSchema::DataType::FLOAT:
       if (!str_value.empty()) {
-        return KuduValue::FromFloat(strtof(str_value.c_str(), nullptr));
+        return KuduValue::FromDouble(strtod(str_value.c_str(), nullptr));
       }
+      break;
     case KuduColumnSchema::DataType::DOUBLE:
       if (!str_value.empty()) {
         return KuduValue::FromDouble(strtod(str_value.c_str(), nullptr));
@@ -436,24 +454,6 @@ KuduValue* ParseValue(KuduColumnSchema::DataType type,
   }
 
   return nullptr;
-}
-
-enum class AlterType {
-  not_supported,
-  set_default,
-  remove_default,
-  set_compression,
-  set_encoding,
-  set_block_size
-};
-
-AlterType ParseAlterType(const std::string& type) {
-  if (type == "set_default") return AlterType::set_default;
-  if (type == "remove_default") return AlterType::remove_default;
-  if (type == "set_compression") return AlterType::set_compression;
-  if (type == "set_encoding") return AlterType::set_encoding;
-  if (type == "set_block_size") return AlterType::set_block_size;
-  return AlterType::not_supported;
 }
 
 Status ParseSetDefaultArgs(const std::string& args,
@@ -690,6 +690,7 @@ unique_ptr<Mode> BuildTableMode() {
           .AddRequiredParameter({ kAlterColumnTypeArg, "Type of alter operation on the column" })
           .AddOptionalParameter("alter_args")
           .Build();
+
   unique_ptr<Action> copy_table =
       ActionBuilder("copy", &CopyTable)
       .Description("Copy table data to another table")

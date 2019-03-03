@@ -96,7 +96,7 @@ Status BShufBlockDecoder<UINT32>::SeekAtOrAfterValue(const void* value_void, boo
 
   while (left != right) {
     uint32_t mid = (left + right) / 2;
-    uint32_t mid_key;
+    uint32_t mid_key = 0;
     switch (size_of_elem_) {
       case 1: {
         mid_key = Decode<uint8_t>(&decoded_[mid * size_of_elem_]);

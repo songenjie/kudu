@@ -118,10 +118,14 @@ TEST_P(HmsClientTest, TestHmsOperations) {
     ASSERT_OK(kdc.CreateServiceKeytab(spn, &ktpath));
 
     ASSERT_OK(rpc::SaslInit());
+// Suppress false positive about 'protection' used when uninitialized.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     hms.EnableKerberos(kdc.GetEnvVars()["KRB5_CONFIG"],
                        spn,
                        ktpath,
                        *protection);
+#pragma GCC diagnostic pop
 
     ASSERT_OK(kdc.CreateUserPrincipal("alice"));
     ASSERT_OK(kdc.Kinit("alice"));
@@ -295,10 +299,14 @@ TEST_P(HmsClientTest, TestLargeObjects) {
     ASSERT_OK(kdc.CreateServiceKeytab(spn, &ktpath));
 
     ASSERT_OK(rpc::SaslInit());
+// Suppress false positive about 'protection' used when uninitialized.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
     hms.EnableKerberos(kdc.GetEnvVars()["KRB5_CONFIG"],
                        spn,
                        ktpath,
                        *protection);
+#pragma GCC diagnostic pop
 
     ASSERT_OK(kdc.CreateUserPrincipal("alice"));
     ASSERT_OK(kdc.Kinit("alice"));

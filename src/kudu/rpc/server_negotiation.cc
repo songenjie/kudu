@@ -700,7 +700,7 @@ Status ServerNegotiation::AuthenticateByToken(faststring* recv_buf) {
   }
 
   if (PREDICT_FALSE(FLAGS_rpc_inject_invalid_authn_token_ratio > 0)) {
-    security::VerificationResult res;
+    security::VerificationResult res = security::VerificationResult::VALID;
     int sel = rand() % 4;
     switch (sel) {
       case 0:

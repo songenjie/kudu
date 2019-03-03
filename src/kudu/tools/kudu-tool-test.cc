@@ -1039,11 +1039,15 @@ TEST_F(ToolTest, TestModeHelp) {
   {
     const vector<string> kTableModeRegexes = {
         "delete.*Delete a table",
+        "describe.*Describe a table",
         "rename_table.*Rename a table",
-        "rename_column.*Rename a column",
+        "delete_column.*Delete a column",
+        "alter_column.*Alter a column",
         "list.*List tables",
-        "scan.*Scan rows from a table",
+        "locate_row.*Locate which tablet a row belongs to",
+        "rename_column.*Rename a column",
         "copy.*Copy table data to another table",
+        "scan.*Scan rows from a table",
     };
     NO_FATALS(RunTestHelp("table", kTableModeRegexes));
   }

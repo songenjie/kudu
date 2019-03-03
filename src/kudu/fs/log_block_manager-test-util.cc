@@ -142,7 +142,7 @@ Status LBMCorruptor::PreallocateFullContainer() {
 }
 
 Status LBMCorruptor::AddUnpunchedBlockToFullContainer() {
-  const Container* c;
+  const Container* c = nullptr;
   RETURN_NOT_OK(GetRandomContainer(FULL, &c));
 
   uint64_t fs_block_size;

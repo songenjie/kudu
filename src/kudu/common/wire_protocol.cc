@@ -41,7 +41,6 @@
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/fastmem.h"
 #include "kudu/gutil/strings/substitute.h"
-#include "kudu/gutil/walltime.h"
 #include "kudu/util/bitmap.h"
 #include "kudu/util/compression/compression.pb.h"
 #include "kudu/util/faststring.h"
