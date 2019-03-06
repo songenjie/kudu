@@ -8,8 +8,8 @@ import commands
 import time
 import json
 import re
+import os
 
-minos_client_path = ''  # minos client full path
 master_rpcs = ''        # master rpc addresses
 cluster = ''            # cluster name in minos config
 job = 'tablet_server'   # job name in minos config
@@ -19,6 +19,27 @@ flags = ''              # minos flags, e.g. '--update_config' for updating confi
 known_unhealth_nodes = set()
 #known_unhealth_nodes.add()    # it's ok to add some known unhealth nodes, e.g. some already stoped servers
 
+def get_minos_type(cluster_name):
+    minos_type = 'null'
+    minos_clinet_path = None
+
+    minos_config_file = os.getenv('MINOS_CONFIG_FILE')
+    minos_clinet_dir = os.getenv('MINOS_CLIENT_DIR')
+    if minos_config_file is not None and minos_clinet_dir is not None:
+        minos_config_dir = os.path.dirname(minos_config_file)
+        minos_config = '%s/xiaomi-config/conf/kudu/kudu-%s.cfg' % (minos_config_dir, cluster_name)
+        if os.path.exists(minos_config) and os.path.exists(minos_clinet_dir + '/deploy'):
+            return 'minos1.0', minos_clinet_dir
+    
+    minos2_config_file = os.getenv('MINOS2_CONFIG_FILE')
+    minos2_clinet_dir = os.getenv('MINOS2_CLIENT_DIR')
+    if minos2_config_file is not None and minos2_clinet_dir is not None:
+        minos2_config_dir = os.path.dirname(minos2_config_file)
+        minos2_config = '%s/xiaomi-config/conf/kudu/kudu-%s.yaml' % (minos2_config_dir, cluster_name)
+        if os.path.exists(minos2_config) and os.path.exists(minos2_clinet_dir + '/deploy'):
+            return 'minos2.0', minos2_clinet_dir
+
+    return minos_type, minos_clinet_path
 
 def get_host(host_port):
     return host_port.split(':')[0]
@@ -90,12 +111,21 @@ def time_header():
 
 
 check_parameter('You will operate on cluster: %s? (y/n)', cluster)
+minos_type, minos_client_path = get_minos_type(cluster)
+if minos_type == 'null' or minos_client_path is None:
+    print("You should set these environment variables:\n* MINOS_CONFIG_FILE\n* MINOS_CLIENT_DIR\n" +
+          "* MINOS2_CONFIG_FILE\n* MINOS2_CLIENT_DIR\nand check cluster name")
+    exit()
+check_parameter('The minos type is: %s? (y/n)', minos_type)
+check_parameter('The minos client path is: %s? (y/n)', minos_client_path)
 check_parameter('The master rpc addresses are: %s? (y/n)', master_rpcs)
 check_parameter('You will operate on job: %s? (y/n)', job)
 check_parameter('You will operate on tasks: %s? (y/n)', tasks)
 check_parameter('The operate is: %s? (y/n)', operate)
 if operate == 'rolling_update' and flags.find('--update_package') == -1:
     flags += ' --update_package'
+    if minos_type == 'minos2.0' and flags.find('--confirm_install') == -1:
+        flags += ' --confirm_install'
 check_parameter('The extra flags are: %s? (y/n)', flags, True)
 check_parameter('The known unhealth nodes are: %s? (y/n)', ','.join(known_unhealth_nodes), True)
 
