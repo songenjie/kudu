@@ -81,8 +81,8 @@ def update_metric_urls(host_urls, cur_time, role):
     if cur_time - g_last_metric_urls_updated_time < 300:    # update_metric_urls every 5 minutes
         return host_urls
     LOG.info('Start to update_metric_urls()')
-    cmd = '%s %s list %s -columns=http-addresses -format=json'\
-          % (g_kudu_bin, role, g_args.kudu_master_rpcs)
+    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d'\
+          % (g_kudu_bin, role, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
     LOG.info('request server list: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     host_urls = {}
@@ -143,8 +143,9 @@ def init_metric_types_once(host_urls, timeout):
         for block in ujson.loads(origin_metric):
             for metric in block['metrics']:
                 g_metric_type[metric['name']] = metric['type'].upper()
-            g_metric_types_inited = True
-            return      # init once is ok
+            if block['type'] in ('table', 'tablet'):
+                g_metric_types_inited = True
+                return      # init once is ok
 
 
 def get_value(metric_name, metric_value):
@@ -187,6 +188,9 @@ def parse_tablet_metrics(block,
     global g_args
     for metric in block['metrics']:
         metric_name = metric['name']
+        if metric_name not in g_metric_type:
+            LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
+            continue
         if g_metric_type[metric_name] in ['GAUGE', 'COUNTER']:
             metric_value = metric['value']
             parsed_value = get_value(metric_name, metric_value)
@@ -255,6 +259,9 @@ def parse_table_metrics(block,
                         host_metrics_histogram):
     for metric in block['metrics']:
         metric_name = metric['name']
+        if metric_name not in g_metric_type:
+            LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
+            continue
         if g_metric_type[metric_name] in ['GAUGE', 'COUNTER']:
             metric_value = metric['value']
             parsed_value = get_value(metric_name, metric_value)
@@ -442,7 +449,8 @@ def get_health_falcon_data():
     cmd = '%s cluster ksck %s -consensus=false'\
           ' -ksck_format=json_compact -color=never'\
           ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'\
-          ' 2>/dev/null' % (g_kudu_bin, g_args.kudu_master_rpcs)
+          ' -timeout_ms=%d 2>/dev/null'\
+          % (g_kudu_bin, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
     LOG.info('request cluster ksck info: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     if status == 0 or status == 256:
@@ -647,7 +655,7 @@ def parse_command_line():
 
     parser.add_argument('--get_metrics_timeout', type=int,
                         help='The timeout to fetch metrics from server in seconds',
-                        required=False, default=10)
+                        required=False, default=3)
 
     parser.add_argument('--falcon_url', type=str, help='The falcon url to push metrics to',
                         required=False, default='http://127.0.0.1:1988/v1/push')
