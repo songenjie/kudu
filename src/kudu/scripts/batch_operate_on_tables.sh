@@ -7,18 +7,18 @@ then
   echo "        file: A file contains several table names in a cluster, one table name per line."
   echo "              Or 'auto' means all tables in this cluster"
   echo "     operate: Now support 'copy', 'delete', 'describe' and 'scan'"
-  echo "     cluster: Master addresses of cluster"
+  echo "     cluster: CLuster name or master RPC addresses"
   echo " dst-cluster: Master addresses of destination cluster, needed only when 'operate' is 'copy'"
   exit -1
 fi
 
 FILE=$1
 OPERATE=$2
-MASTERS=$3
-DST_MASTERS=$4
+CLUSTER=$3
+DST_CLUSTER=$4
 FLAGS="-show_attributes"
 #FLAGS="-create_table=false -write_type=upsert"
-BIN_PATH=$HOME/kudu_xm_master/build/release/bin/kudu
+BIN_PATH=${KUDU_HOME}/kudu
 PID=$$
 
 echo "UID: ${UID}"
@@ -31,8 +31,8 @@ else
     cat ${FILE}
 fi
 echo "operate: ${OPERATE}"
-echo "masters: ${MASTERS}"
-echo "dst masters: ${DST_MASTERS}"
+echo "cluster: ${CLUSTER}"
+echo "dst cluster: ${DST_CLUSTER}"
 echo "flags: ${FLAGS}"
 
 echo ""
@@ -46,7 +46,7 @@ fi
 if [ "${FILE}" == "auto" ]
 then
     TABLE_LIST=/tmp/$UID.${PID}.table.list
-    ${BIN_PATH} table list ${MASTERS} | sort -n >${TABLE_LIST}
+    ${BIN_PATH} table list ${CLUSTER} | sort -n >${TABLE_LIST}
 else
     TABLE_LIST=${FILE}
 fi

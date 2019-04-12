@@ -26,7 +26,6 @@ then
 fi
 
 CLUSTER=$1
-MASTERS=$2
 TABLE_COUNT=9999
 if [[ $# -ge 2 ]]
 then
@@ -47,7 +46,6 @@ fi
 echo "UID: ${UID}"
 echo "PID: ${PID}"
 echo "cluster: ${CLUSTER}"
-echo "masters: ${MASTERS}"
 echo "top n table: ${TABLE_COUNT}"
 echo "metric template: ${TEMPLATE_NAME}"
 echo "Start time: `date`"

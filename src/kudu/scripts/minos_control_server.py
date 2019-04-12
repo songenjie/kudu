@@ -11,7 +11,6 @@ import re
 import os
 import subprocess
 
-master_rpcs = ''        # master rpc addresses
 cluster = ''            # cluster name in minos config
 job = 'tablet_server'   # job name in minos config
 operate = 'stop'        # minos operate type, currently support: restart, stop, rolling_update
@@ -52,7 +51,7 @@ def is_cluster_health():
                                               ' -ksck_format=json_compact -color=never'
                                               ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'
                                               ' 2>/dev/null'
-                                              % master_rpcs)
+                                              % cluster)
     unhealth_nodes = set()
     if status == 0 or status == 256:
         ksck_info = json.loads(output)
@@ -100,7 +99,7 @@ def wait_cluster_health():
                 break
 
 
-def parse_node_from_minos_output(output):
+def parse_node_from_minos_output(output, job):
     host = ''
     regex = re.compile('[a-zA-Z\s]*[tT]ask [0-9]+ of (%s) on ([0-9a-z-.]+)\(0\).+' % job)
     match = regex.search(output)
@@ -167,7 +166,6 @@ if minos_type == 'null' or minos_client_path is None:
     exit()
 check_parameter('The minos type is: %s? (y/n)', minos_type)
 check_parameter('The minos client path is: %s? (y/n)', minos_client_path)
-check_parameter('The master rpc addresses are: %s? (y/n)', master_rpcs)
 check_parameter('You will operate on job: %s? (y/n)', job)
 check_parameter('You will operate on tasks: %s? (y/n)', tasks)
 check_parameter('The operate is: %s? (y/n)', operate)
@@ -214,7 +212,7 @@ for task in tasks:
     print(time_header() + 'operate status: ' + str(status))
     print(output)
     if operate == 'stop':
-        known_unhealth_nodes.add(parse_node_from_minos_output(output))
+        known_unhealth_nodes.add(parse_node_from_minos_output(output, job))
 
     wait_cluster_health()
 
