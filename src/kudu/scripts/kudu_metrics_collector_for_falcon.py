@@ -36,7 +36,7 @@ g_metric_type = {'replica_count': 'GAUGE'}
 g_last_metric_urls_updated_time = 0
 g_is_running = True
 g_args = {}
-g_kudu_bin = 'kudu'
+g_kudu_bin = os.environ.get('KUDU_HOME') + '/kudu'
 
 """ origin metrics are as follows, but we only use `percentile_99` now
 """
@@ -81,8 +81,8 @@ def update_metric_urls(host_urls, cur_time, role):
     if cur_time - g_last_metric_urls_updated_time < 300:    # update_metric_urls every 5 minutes
         return host_urls
     LOG.info('Start to update_metric_urls()')
-    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d'\
-          % (g_kudu_bin, role, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
+    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d 2>/dev/null'\
+          % (g_kudu_bin, role, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
     LOG.info('request server list: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     host_urls = {}
@@ -450,7 +450,7 @@ def get_health_falcon_data():
           ' -ksck_format=json_compact -color=never'\
           ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'\
           ' -timeout_ms=%d 2>/dev/null'\
-          % (g_kudu_bin, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
+          % (g_kudu_bin, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
     LOG.info('request cluster ksck info: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     if status == 0 or status == 256:
@@ -618,7 +618,7 @@ def rebalance_cluster():
                 and time.time() - last_rebalance_time > rebalance_min_interval:
             start = time.time()
             cmd = '%s cluster rebalance %s -tables=%s 2>/dev/null' \
-                  % (g_kudu_bin, g_args.kudu_master_rpcs, g_args.rebalance_tables)
+                  % (g_kudu_bin, g_args.cluster_name, g_args.rebalance_tables)
             LOG.info('request cluster rebalance info: %s' % cmd)
             status, output = commands.getstatusoutput(cmd)
             if status == 0 or status == 256:
@@ -640,9 +640,6 @@ def parse_command_line():
                                      description='Collect apache kudu cluster metrics.')
 
     parser.add_argument('--cluster_name', type=str, help='Kudu cluster name',
-                        required=True)
-
-    parser.add_argument('--kudu_master_rpcs', type=str, help='Kudu masters rpc addresses',
                         required=True)
 
     parser.add_argument('--metric_period', type=int, help='The period to fetch metrics in seconds',

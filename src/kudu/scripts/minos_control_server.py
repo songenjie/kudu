@@ -10,7 +10,6 @@ import json
 import re
 import os
 
-master_rpcs = ''        # master rpc addresses
 cluster = ''            # cluster name in minos config
 job = 'tablet_server'   # job name in minos config
 operate = 'stop'        # minos operate type, currently support: restart, stop, rolling_update
@@ -45,11 +44,11 @@ def get_host(host_port):
     return host_port.split(':')[0]
 
 def is_cluster_health():
-    status, output = commands.getstatusoutput('./kudu cluster ksck %s -consensus=false'
+    status, output = commands.getstatusoutput('${KUDU_HOME}/kudu cluster ksck %s -consensus=false'
                                               ' -ksck_format=json_compact -color=never'
                                               ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'
                                               ' 2>/dev/null'
-                                              % master_rpcs)
+                                              % cluster)
     unhealth_nodes = set()
     if status == 0 or status == 256:
         ksck_info = json.loads(output)
@@ -97,9 +96,9 @@ def wait_cluster_health():
                 break
 
 
-def parse_node_from_minos_output(output):
+def parse_node_from_minos_output(output, job):
     host = ''
-    regex = re.compile('Stop task [0-9]+ of (tablet_server) on ([0-9a-z-.]+)\(0\).+')
+    regex = re.compile('Stop task [0-9]+ of (%s) on ([0-9a-z-.]+)\(0\).+' % job)
     match = regex.search(output)
     if match is not None:
         host = match.group(2)
@@ -118,7 +117,6 @@ if minos_type == 'null' or minos_client_path is None:
     exit()
 check_parameter('The minos type is: %s? (y/n)', minos_type)
 check_parameter('The minos client path is: %s? (y/n)', minos_client_path)
-check_parameter('The master rpc addresses are: %s? (y/n)', master_rpcs)
 check_parameter('You will operate on job: %s? (y/n)', job)
 check_parameter('You will operate on tasks: %s? (y/n)', tasks)
 check_parameter('The operate is: %s? (y/n)', operate)
@@ -143,7 +141,7 @@ for task in tasks:
     print(time_header() + 'operate status: ' + str(status))
     print(output)
     if operate == 'stop':
-        known_unhealth_nodes.add(parse_node_from_minos_output(output))
+        known_unhealth_nodes.add(parse_node_from_minos_output(output, job))
 
     wait_cluster_health()
 

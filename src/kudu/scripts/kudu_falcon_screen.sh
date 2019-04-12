@@ -2,36 +2,34 @@
 
 PID=$$
 BASE_DIR="$( cd "$( dirname "$0" )" && pwd )"
-BIN_PATH=${HOME}/kudu/build/release/bin/
-if [[ ! -f ${BIN_PATH}kudu ]]; then
+BIN_PATH=${KUDU_HOME}/kudu
+if [[ ! -f ${BIN_PATH} ]]; then
   echo "ERROR: kudu not found in ${BIN_PATH}"
   exit 1
 fi
 
-if [[ $# -ne 3 ]]
+if [[ $# -ne 2 ]]
 then
   echo "This tool is for update falcon screen for specified kudu cluster."
-  echo "USAGE: $0 <cluster_name> <masters> <table_count>"
+  echo "USAGE: $0 <cluster_name> <table_count>"
   exit 1
 fi
 
 CLUSTER=$1
-MASTERS=$2
-TABLE_COUNT=$3
+TABLE_COUNT=$2
 
 echo "UID: ${UID}"
 echo "PID: ${PID}"
 echo "cluster: ${CLUSTER}"
-echo "masters: ${MASTERS}"
 echo "top n table: ${TABLE_COUNT}"
 echo "Start time: `date`"
 ALL_START_TIME=$((`date +%s`))
 echo
 
 # get master list
-${BIN_PATH}kudu master list ${MASTERS} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
+${BIN_PATH} master list ${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
 if [[ $? -ne 0 ]]; then
-    echo "`kudu master list ${MASTERS} -format=space` failed"
+    echo "`kudu master list ${CLUSTER} -format=space` failed"
     exit $?
 fi
 
@@ -42,9 +40,9 @@ if [[ ${MASTER_COUNT} -eq 0 ]]; then
 fi
 
 # get tserver list
-${BIN_PATH}kudu tserver list ${MASTERS} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
+${BIN_PATH} tserver list ${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
 if [[ $? -ne 0 ]]; then
-    echo "`kudu tserver list ${MASTERS} -format=space` failed"
+    echo "`kudu tserver list ${CLUSTER} -format=space` failed"
     exit $?
 fi
 
@@ -55,7 +53,7 @@ if [[ ${TSERVER_COUNT} -eq 0 ]]; then
 fi
 
 # get table list
-python ${BASE_DIR}/kudu_metrics_collector_for_falcon.py --cluster_name=any --kudu_master_rpcs=${MASTERS} --falcon_url= --metrics=bytes_flushed,on_disk_data_size,scanner_rows_returned --local_stat > /tmp/${UID}.${PID}.kudu.metric_table_value
+python ${BASE_DIR}/kudu_metrics_collector_for_falcon.py --cluster_name=${CLUSTER} --falcon_url= --metrics=bytes_flushed,on_disk_data_size,scanner_rows_returned --local_stat > /tmp/${UID}.${PID}.kudu.metric_table_value
 if [[ $? -ne 0 ]]; then
     echo "ERROR: kudu_metrics_collector_for_falcon.py execute failed"
     exit 1

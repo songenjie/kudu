@@ -2,7 +2,7 @@
 
 master_count=3
 tserver_count=3
-bin_path=${HOME}/kudu/build/release/bin/
+bin_path=./
 # In release package, 'kudu-master' and 'kudu-tserver' are renamed to 'kudu_master' and 'kudu_tablet_server'
 #master_bin=kudu-master
 #tserver_bin=kudu-tserver
