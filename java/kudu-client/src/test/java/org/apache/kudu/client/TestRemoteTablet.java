@@ -211,9 +211,9 @@ public class TestRemoteTablet {
   @Test
   public void testGetReplicaSelectedServerInfoRandomness() {
     RemoteTablet tablet1 = getTablet(0, -1, "a fake tablet");
-    String serverUuid1 = tablet1.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA).getUuid();
+    String serverUuid1 = tablet1.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA, kNoLocation).getUuid();
     RemoteTablet tablet2 = getTablet(0, -1, "b fake tablet");
-    String serverUuid2 = tablet2.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA).getUuid();
+    String serverUuid2 = tablet2.getReplicaSelectedServerInfo(ReplicaSelection.CLOSEST_REPLICA, kNoLocation).getUuid();
     assertNotEquals("getReplicaSelectedServerInfo was not random", serverUuid1, serverUuid2);
   }
 

@@ -395,7 +395,7 @@ class KuduContext(val kuduMaster: String, sc: SparkContext, val socketReadTimeou
         val row = typeConverter(internalRow).asInstanceOf[Row]
         val operation = opType.operation(table)
         for ((sparkIdx, kuduIdx) <- indices) {
-          if (operationType == Delete && !table.getSchema
+          if (opType == Delete && !table.getSchema
               .getColumnByIndex(kuduIdx)
               .isKey) {} else if (row.isNullAt(sparkIdx)) {
             if (table.getSchema.getColumnByIndex(kuduIdx).isKey) {
