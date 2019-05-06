@@ -125,9 +125,17 @@ Status RemoveBlacklistTservers(
 } // anonymous namespace
 
 Status RebalancingAlgo::MoveReplicasFromBLTservers(ClusterInfo* cluster_info,
+                                                   int max_moves_per_server,
                                                    std::vector<TableReplicaMove>* moves) {
+  DCHECK_LE(0, max_moves_per_server);
   DCHECK(moves);
+
+  // Value of '0' is a shortcut for 'the possible maximum'.
+  if (max_moves_per_server == 0) {
+    max_moves_per_server = numeric_limits<decltype(max_moves_per_server)>::max();
+  }
   moves->clear();
+
   // Copy cluster_info so we can apply moves to the copy.
   ClusterInfo info(*DCHECK_NOTNULL(cluster_info));
 
@@ -157,6 +165,7 @@ Status RebalancingAlgo::MoveReplicasFromBLTservers(ClusterInfo* cluster_info,
     return Status::OK();
   }
   for (const auto& elem : blacklist_tservers_info) {
+    int moves_num = 0;
     const auto& ts_uuid = elem.first;
     const auto& replica_count_by_table = elem.second;
     for (const auto& e : replica_count_by_table) {
@@ -164,7 +173,7 @@ Status RebalancingAlgo::MoveReplicasFromBLTservers(ClusterInfo* cluster_info,
       auto replica_count = e.second;
       VLOG(1) << Substitute("Move $0 replicas of table $1 from blacklist tserver $2",
                             replica_count, table_id, ts_uuid);
-      while (replica_count--) {
+      while (replica_count > 0 && moves_num < max_moves_per_server) {
         std::string dst_server_uuid;
         RETURN_NOT_OK(GetMoveToServer(info, table_id, &dst_server_uuid));
         if (dst_server_uuid.empty()) {
@@ -174,6 +183,11 @@ Status RebalancingAlgo::MoveReplicasFromBLTservers(ClusterInfo* cluster_info,
         TableReplicaMove move = { table_id, ts_uuid, dst_server_uuid };
         RETURN_NOT_OK(ApplyMove(move, &balance_info));
         moves->push_back(std::move(move));
+        moves_num++;
+        replica_count--;
+      }
+      if (moves_num >= max_moves_per_server) {
+        break;
       }
     }
   }
@@ -342,7 +356,7 @@ Status TwoDimensionalGreedyAlgo::GetMoveToServer(const ClusterInfo& cluster_info
   const auto& blacklist_tservers = cluster_info.blacklist_tservers;
 
   // Lambda for removing blacklist tservers from ServersByCountMap.
-  const auto remove_blacklist_tservers = [blacklist_tservers](ServersByCountMap* servers) {
+  const auto remove_blacklist_tservers = [&blacklist_tservers](ServersByCountMap* servers) {
     for (auto it = servers->begin(); it != servers->end();) {
       if (ContainsKey(blacklist_tservers, it->second)) {
         it = servers->erase(it);

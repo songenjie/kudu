@@ -340,10 +340,10 @@ void VerifyMovesFromBlacklistTservers(const TestClusterConfig& cfg) {
     if (cfg.servers_by_location.empty()) {
       TwoDimensionalGreedyAlgo algo(
         TwoDimensionalGreedyAlgo::EqualSkewOption::PICK_FIRST);
-      ASSERT_OK(algo.MoveReplicasFromBLTservers(&ci, &moves));
+      ASSERT_OK(algo.MoveReplicasFromBLTservers(&ci, 0, &moves));
     } else {
       LocationBalancingAlgo algo(1.0, LocationBalancingAlgo::EqualSkewOption::PICK_FIRST);
-      ASSERT_OK(algo.MoveReplicasFromBLTservers(&ci, &moves));
+      ASSERT_OK(algo.MoveReplicasFromBLTservers(&ci, 0, &moves));
     }
     EXPECT_TRUE(NoBlacklistTserversInClusterInfo(ci));
   }
@@ -391,7 +391,7 @@ TEST(RebalanceAlgoUnitTest, EmptyClusterInfoGetNextMoves) {
 TEST(RebalanceAlgoUnitTest, EmptyClusterBalanceInfoMoveReplicasFromBLTservers) {
   vector<TableReplicaMove> moves;
   ClusterInfo info = {};
-  ASSERT_OK(TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, &moves));
+  ASSERT_OK(TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, 0, &moves));
   EXPECT_TRUE(moves.empty());
 }
 
@@ -420,14 +420,14 @@ TEST(RebalanceAlgoUnitTest, NoTableSkewInClusterBalanceInfoMoveReplicasFromBLTse
   {
     vector<TableReplicaMove> moves;
     ClusterInfo info = { { {}, { { 0, "ts_0" } } } };
-    ASSERT_OK(TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, &moves));
+    ASSERT_OK(TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, 0, &moves));
     EXPECT_TRUE(moves.empty());
   }
 
   {
     vector<TableReplicaMove> moves;
     ClusterInfo info = { { {}, { { 1, "ts_0" }, } } };
-    const auto s = TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, &moves);
+    const auto s = TwoDimensionalGreedyAlgo().MoveReplicasFromBLTservers(&info, 0, &moves);
     ASSERT_TRUE(s.IsInvalidArgument()) << s.ToString();
     ASSERT_STR_MATCHES(s.ToString(),
         "non-zero table count .* on tablet server .* while no table "
