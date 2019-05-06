@@ -1350,7 +1350,9 @@ Status Rebalancer::AlgoBasedRunner::GetNextMovesImpl(
   RETURN_NOT_OK(rebalancer_->BuildClusterInfo(
       raw_info, scheduled_moves_, &cluster_info));
   RETURN_NOT_OK(rebalancer_->CheckRemovingBLTserversSafe(raw_info, cluster_info));
-  RETURN_NOT_OK(algorithm()->MoveReplicasFromBLTservers(&cluster_info, &moves));
+  RETURN_NOT_OK(algorithm()->MoveReplicasFromBLTservers(&cluster_info,
+                                                        max_moves_per_server_ * 5,
+                                                        &moves));
   RETURN_NOT_OK(algorithm()->GetNextMoves(cluster_info, max_moves, &moves));
   if (moves.empty()) {
     // No suitable moves were found: the cluster described by the 'cluster_info'

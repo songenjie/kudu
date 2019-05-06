@@ -132,7 +132,8 @@ class RebalancingAlgo {
   //
   // 'moves' must be non-NULL.
   virtual Status MoveReplicasFromBLTservers(ClusterInfo* cluster_info,
-                                        std::vector<TableReplicaMove>* moves);
+                                            int max_moves_per_server,
+                                            std::vector<TableReplicaMove>* moves);
  protected:
   // Get the destination tserver for the replica of table_id on
   // any blacklist tserver. The algorithm would always find a suitable
