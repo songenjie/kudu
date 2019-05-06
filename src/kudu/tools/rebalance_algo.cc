@@ -113,9 +113,9 @@ Status RemoveBlacklistTservers(
       continue;
     }
     if (it->first != 0) {
-      return Status::IllegalState(Substitute(
+      VLOG(1) << Substitute(
           "There are still $0 unremoved replicas on the blacklist server: $1",
-          it->first, it->second));
+          it->first, it->second);
     }
     // Remove the blacklist tserver if no replica on it.
     it = m->erase(it);
