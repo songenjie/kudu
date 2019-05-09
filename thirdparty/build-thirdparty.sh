@@ -100,6 +100,7 @@ else
       "hadoop")       F_HADOOP=1 ;;
       "hive")         F_HIVE=1 ;;
       "sentry")       F_SENTRY=1 ;;
+      "yaml")         F_YAML=1 ;;
       *)              echo "Unknown module: $arg"; exit 1 ;;
     esac
   done
@@ -367,6 +368,10 @@ if [ -n "$F_UNINSTRUMENTED" -o -n "$F_THRIFT" ]; then
   build_thrift
 fi
 
+if [ -n "$F_UNINSTRUMENTED" -o -n "$F_YAML" ]; then
+  build_yaml
+fi
+
 restore_env
 
 # If we're on macOS best to exit here, otherwise single dependency builds will try to
@@ -545,6 +550,10 @@ fi
 
 if [ -n "$F_TSAN" -o -n "$F_THRIFT" ]; then
   build_thrift
+fi
+
+if [ -n "$F_TSAN" -o -n "$F_YAML" ]; then
+  build_yaml
 fi
 
 restore_env
