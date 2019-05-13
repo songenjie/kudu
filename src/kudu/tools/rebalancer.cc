@@ -81,6 +81,7 @@ namespace tools {
 
 Rebalancer::Config::Config(
     std::vector<std::string> blacklist_tservers,
+    std::vector<std::string> ignored_tservers_param,
     std::vector<std::string> master_addresses,
     std::vector<std::string> table_filters,
     size_t max_moves_per_server,
@@ -93,6 +94,7 @@ Rebalancer::Config::Config(
     bool run_intra_location_rebalancing,
     double load_imbalance_threshold)
     : blacklist_tservers(std::move(blacklist_tservers)),
+      ignored_tservers(ignored_tservers_param.begin(), ignored_tservers_param.end()),
       master_addresses(std::move(master_addresses)),
       table_filters(std::move(table_filters)),
       max_moves_per_server(max_moves_per_server),
@@ -113,11 +115,8 @@ Rebalancer::Rebalancer(const Config& config)
 
 Status Rebalancer::PrintStats(ostream& out) {
   // First, report on the current balance state of the cluster.
-  RETURN_NOT_OK(RefreshKsckResults());
-  const KsckResults& results = ksck_->results();
-
   ClusterRawInfo raw_info;
-  RETURN_NOT_OK(KsckResultsToClusterRawInfo(boost::none, results, &raw_info));
+  RETURN_NOT_OK(GetClusterRawInfo(boost::none, &raw_info));
 
   ClusterInfo ci;
   RETURN_NOT_OK(BuildClusterInfo(raw_info, MovesInProgress(), &ci));
@@ -159,7 +158,7 @@ Status Rebalancer::PrintStats(ostream& out) {
 
   for (const auto& location : locations) {
     ClusterRawInfo raw_info;
-    RETURN_NOT_OK(KsckResultsToClusterRawInfo(location, results, &raw_info));
+    RETURN_NOT_OK(KsckResultsToClusterRawInfo(location, ksck_->results(), &raw_info));
     ClusterInfo ci;
     RETURN_NOT_OK(BuildClusterInfo(raw_info, MovesInProgress(), &ci));
     RETURN_NOT_OK(PrintLocationBalanceStats(location, raw_info, ci, out));
@@ -203,7 +202,7 @@ Status Rebalancer::Run(RunStatus* result_status, size_t* moves_count) {
     const auto& location = ts_id_by_location.cbegin()->first;
     LOG(INFO) << "running whole-cluster rebalancing";
     IntraLocationRunner runner(
-        this, config_.max_moves_per_server, deadline, location);
+        this, config_.ignored_tservers, config_.max_moves_per_server, deadline, location);
     RETURN_NOT_OK(runner.Init(config_.master_addresses));
     RETURN_NOT_OK(RunWith(&runner, result_status));
     moves_count_total += runner.moves_count();
@@ -224,7 +223,8 @@ Status Rebalancer::Run(RunStatus* result_status, size_t* moves_count) {
     if (config_.run_policy_fixer) {
       // Fix placement policy violations, if any.
       LOG(INFO) << "fixing placement policy violations";
-      PolicyFixer runner(this, config_.max_moves_per_server, deadline);
+      PolicyFixer runner(
+          this, config_.ignored_tservers, config_.max_moves_per_server, deadline);
       RETURN_NOT_OK(runner.Init(config_.master_addresses));
       RETURN_NOT_OK(RunWith(&runner, result_status));
       moves_count_total += runner.moves_count();
@@ -233,6 +233,7 @@ Status Rebalancer::Run(RunStatus* result_status, size_t* moves_count) {
       // Run the rebalancing across locations (inter-location rebalancing).
       LOG(INFO) << "running cross-location rebalancing";
       CrossLocationRunner runner(this,
+                                 config_.ignored_tservers,
                                  config_.max_moves_per_server,
                                  config_.load_imbalance_threshold,
                                  deadline);
@@ -246,8 +247,11 @@ Status Rebalancer::Run(RunStatus* result_status, size_t* moves_count) {
         const auto& location = elem.first;
         // TODO(aserbin): it would be nice to run these rebalancers in parallel
         LOG(INFO) << "running rebalancer within location '" << location << "'";
-        IntraLocationRunner runner(
-            this, config_.max_moves_per_server, deadline, location);
+        IntraLocationRunner runner(this,
+                                   config_.ignored_tservers,
+                                   config_.max_moves_per_server,
+                                   deadline,
+                                   location);
         RETURN_NOT_OK(runner.Init(config_.master_addresses));
         RETURN_NOT_OK(RunWith(&runner, result_status));
         moves_count_total += runner.moves_count();
@@ -1034,9 +1038,11 @@ Status Rebalancer::CheckRemovingBLTserversSafe(const ClusterRawInfo& raw_info,
 }
 
 Rebalancer::BaseRunner::BaseRunner(Rebalancer* rebalancer,
+                                   std::unordered_set<std::string> ignored_tservers,
                                    size_t max_moves_per_server,
                                    boost::optional<MonoTime> deadline)
     : rebalancer_(rebalancer),
+      ignored_tservers_(std::move(ignored_tservers)),
       max_moves_per_server_(max_moves_per_server),
       deadline_(std::move(deadline)),
       moves_count_(0) {
@@ -1099,9 +1105,13 @@ void Rebalancer::BaseRunner::UpdateOnMoveCompleted(const string& ts_uuid) {
 
 Rebalancer::AlgoBasedRunner::AlgoBasedRunner(
     Rebalancer* rebalancer,
+    std::unordered_set<std::string> ignored_tservers,
     size_t max_moves_per_server,
     boost::optional<MonoTime> deadline)
-    : BaseRunner(rebalancer, max_moves_per_server, std::move(deadline)),
+    : BaseRunner(rebalancer,
+                 std::move(ignored_tservers),
+                 max_moves_per_server,
+                 std::move(deadline)),
       random_generator_(random_device_()) {
 }
 
@@ -1299,10 +1309,14 @@ Status Rebalancer::AlgoBasedRunner::GetNextMovesImpl(
   RETURN_NOT_OK(rebalancer_->GetClusterRawInfo(loc, &raw_info));
 
   // For simplicity, allow to run the rebalancing only when all tablet servers
-  // are in good shape. Otherwise, the rebalancing might interfere with the
+  // are in good shape (except those specified in 'ignored_tservers_').
+  // Otherwise, the rebalancing might interfere with the
   // automatic re-replication or get unexpected errors while moving replicas.
   for (const auto& s : raw_info.tserver_summaries) {
     if (s.health != KsckServerHealth::HEALTHY) {
+      if (ContainsKey(ignored_tservers_, s.uuid)) {
+        continue;
+      }
       return Status::IllegalState(
           Substitute("tablet server $0 ($1): unacceptable health status $2",
                      s.uuid, s.address, ServerHealthToString(s.health)));
@@ -1548,26 +1562,38 @@ void Rebalancer::AlgoBasedRunner::UpdateOnMoveScheduledImpl(
 
 Rebalancer::IntraLocationRunner::IntraLocationRunner(
     Rebalancer* rebalancer,
+    std::unordered_set<std::string> ignored_tservers,
     size_t max_moves_per_server,
     boost::optional<MonoTime> deadline,
     std::string location)
-    : AlgoBasedRunner(rebalancer, max_moves_per_server, std::move(deadline)),
+    : AlgoBasedRunner(rebalancer,
+                      std::move(ignored_tservers),
+                      max_moves_per_server,
+                      std::move(deadline)),
       location_(std::move(location)) {
 }
 
 Rebalancer::CrossLocationRunner::CrossLocationRunner(Rebalancer* rebalancer,
+    std::unordered_set<std::string> ignored_tservers,
     size_t max_moves_per_server,
     double load_imbalance_threshold,
     boost::optional<MonoTime> deadline)
-    : AlgoBasedRunner(rebalancer, max_moves_per_server, std::move(deadline)),
+    : AlgoBasedRunner(rebalancer,
+                      std::move(ignored_tservers),
+                      max_moves_per_server,
+                      std::move(deadline)),
       algorithm_(load_imbalance_threshold) {
 }
 
 Rebalancer::PolicyFixer::PolicyFixer(
     Rebalancer* rebalancer,
+    std::unordered_set<std::string> ignored_tservers,
     size_t max_moves_per_server,
     boost::optional<MonoTime> deadline)
-    : BaseRunner(rebalancer, max_moves_per_server, std::move(deadline)) {
+    : BaseRunner(rebalancer,
+                 std::move(ignored_tservers),
+                 max_moves_per_server,
+                 std::move(deadline)) {
 }
 
 Status Rebalancer::PolicyFixer::Init(vector<string> master_addresses) {
@@ -1704,11 +1730,15 @@ Status Rebalancer::PolicyFixer::GetNextMovesImpl(
   RETURN_NOT_OK(rebalancer_->GetClusterRawInfo(boost::none, &raw_info));
 
   // For simplicity, allow to run the rebalancing only when all tablet servers
-  // are in good shape. Otherwise, the rebalancing might interfere with the
+  // are in good shape (except those specified in 'ignored_tservers_').
+  // Otherwise, the rebalancing might interfere with the
   // automatic re-replication or get unexpected errors while moving replicas.
   // TODO(aserbin): move it somewhere else?
   for (const auto& s : raw_info.tserver_summaries) {
     if (s.health != KsckServerHealth::HEALTHY) {
+      if (ContainsKey(ignored_tservers_, s.uuid)) {
+        continue;
+      }
       return Status::IllegalState(
           Substitute("tablet server $0 ($1): unacceptable health status $2",
                      s.uuid, s.address, ServerHealthToString(s.health)));

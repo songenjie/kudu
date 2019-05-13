@@ -277,6 +277,7 @@ class KsckResultsToClusterBalanceInfoTest : public ::testing::Test {
 TEST_F(KsckResultsToClusterBalanceInfoTest, MoveRf1Replicas) {
   const Rebalancer::Config rebalancer_config = {
     {},     // blacklist_tservers
+    {},     // ignored_tservers
     {},     // master_addresses
     {},     // table_filters
     5,      // max_moves_per_server
@@ -414,6 +415,7 @@ TEST_F(KsckResultsToClusterBalanceInfoTest, MoveRf1Replicas) {
 TEST_F(KsckResultsToClusterBalanceInfoTest, DoNotMoveRf1Replicas) {
   const Rebalancer::Config rebalancer_config = {
     {},     // blacklist_tservers
+    {},     // ignored_tservers
     {},     // master_addresses
     {},     // table_filters
     5,      // max_moves_per_server

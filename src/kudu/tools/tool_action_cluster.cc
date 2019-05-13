@@ -70,6 +70,13 @@ DEFINE_string(blacklist_tservers, "",
               "to other tservers before rebalancing. "
               "If not specified, rebalance all tablet servers.");
 
+DEFINE_string(ignored_tservers, "",
+              "UUIDs of tablet servers to ignore while rebalancing the cluster "
+              "(comma-separated list). If specified, allow to run the rebalancing "
+              "when some tablet servers in 'ignored_tservers' are unhealthy. "
+              "If not specified, allow to run the rebalancing only when all tablet "
+              "servers are healthy.");
+
 DEFINE_string(sections, "*",
               "Sections to print (comma-separated list of sections, "
               "available sections are: MASTER_SUMMARIES, TSERVER_SUMMARIES, "
@@ -289,6 +296,8 @@ Status EvaluateMoveSingleReplicasFlag(const vector<string>& master_addresses,
 Status RunRebalance(const RunnerContext& context) {
   const vector<string> blacklist_tservers =
       Split(FLAGS_blacklist_tservers, ",", strings::SkipEmpty());
+  const vector<string> ignored_tservers =
+      Split(FLAGS_ignored_tservers, ",", strings::SkipEmpty());
   vector<string> master_addresses;
   RETURN_NOT_OK(ParseMasterAddresses(context, &master_addresses));
   const vector<string> table_filters =
@@ -302,6 +311,7 @@ Status RunRebalance(const RunnerContext& context) {
                                                &move_single_replicas));
   Rebalancer rebalancer(Rebalancer::Config(
       blacklist_tservers,
+      ignored_tservers,
       master_addresses,
       table_filters,
       FLAGS_max_moves_per_server,
@@ -405,6 +415,7 @@ unique_ptr<Mode> BuildClusterMode() {
         .AddOptionalParameter("disable_cross_location_rebalancing")
         .AddOptionalParameter("disable_intra_location_rebalancing")
         .AddOptionalParameter("fetch_info_concurrency")
+        .AddOptionalParameter("ignored_tservers")
         .AddOptionalParameter("load_imbalance_threshold")
         .AddOptionalParameter("max_moves_per_server")
         .AddOptionalParameter("max_run_time_sec")
