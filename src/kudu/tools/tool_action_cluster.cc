@@ -22,7 +22,6 @@
 #include <memory>
 #include <string>
 #include <tuple>
-#include <unordered_map>
 #include <vector>
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -32,7 +31,6 @@
 #include <glog/logging.h>
 
 #include "kudu/gutil/basictypes.h"
-#include "kudu/gutil/map-util.h"
 #include "kudu/gutil/port.h"
 #include "kudu/gutil/strings/split.h"
 #include "kudu/gutil/strings/substitute.h"
@@ -174,8 +172,8 @@ namespace tools {
 namespace {
 
 Status RunKsck(const RunnerContext& context) {
-  vector<string> master_addresses = Split(
-      FindOrDie(context.required_args, kMasterAddressesArg), ",");
+  vector<string> master_addresses;
+  RETURN_NOT_OK(ParseMasterAddresses(context, &master_addresses));
   shared_ptr<KsckCluster> cluster;
   RETURN_NOT_OK_PREPEND(RemoteKsckCluster::Build(master_addresses, &cluster),
                         "unable to build KsckCluster");
@@ -291,8 +289,8 @@ Status EvaluateMoveSingleReplicasFlag(const vector<string>& master_addresses,
 Status RunRebalance(const RunnerContext& context) {
   const vector<string> blacklist_tservers =
       Split(FLAGS_blacklist_tservers, ",", strings::SkipEmpty());
-  const vector<string> master_addresses = Split(
-      FindOrDie(context.required_args, kMasterAddressesArg), ",");
+  vector<string> master_addresses;
+  RETURN_NOT_OK(ParseMasterAddresses(context, &master_addresses));
   const vector<string> table_filters =
       Split(FLAGS_tables, ",", strings::SkipEmpty());
 

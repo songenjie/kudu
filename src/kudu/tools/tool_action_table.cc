@@ -151,7 +151,6 @@ const char* const kColumnNameArg = "column_name";
 const char* const kAlterColumnTypeArg = "alter_type";
 const char* const kNewColumnNameArg = "new_column_name";
 const char* const kKeyArg = "primary_key";
-const char* const kDestMasterAddressesArg = "dest_master_addresses";
 
 Status DeleteTable(const RunnerContext& context) {
   const string& table_name = FindOrDie(context.required_args, kTableNameArg);
@@ -560,9 +559,9 @@ Status AlterColumn(const RunnerContext& context) {
 }
 
 Status ListTables(const RunnerContext& context) {
-  const string& master_addresses_str = FindOrDie(context.required_args,
-                                                 kMasterAddressesArg);
-  return TableLister::ListTablets(Split(master_addresses_str, ","));
+  vector<string> master_addresses;
+  RETURN_NOT_OK(ParseMasterAddresses(context, &master_addresses));
+  return TableLister::ListTablets(master_addresses);
 }
 
 Status ScanTable(const RunnerContext &context) {
@@ -699,13 +698,9 @@ unique_ptr<Mode> BuildTableMode() {
                         "could have different partition schemas. Alternatively, the tool can "
                         "create the new table using the same table and partition schema as the "
                         "source table.")
-      .AddRequiredParameter({ kMasterAddressesArg,
-                              "Comma-separated list of Kudu Master addresses (source) "
-                              "where each address is of form 'hostname:port'" })
+      .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
       .AddRequiredParameter({ kTableNameArg, "Name of the source table" })
-      .AddRequiredParameter({ kDestMasterAddressesArg,
-                              "Comma-separated list of Kudu Master addresses (destination) "
-                              "where each address is of form 'hostname:port'" })
+      .AddRequiredParameter({ kDestMasterAddressesArg, kDestMasterAddressesArgDesc })
       .AddOptionalParameter("create_table")
       .AddOptionalParameter("dst_table")
       .AddOptionalParameter("num_threads")
