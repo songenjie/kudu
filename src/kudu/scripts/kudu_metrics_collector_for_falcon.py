@@ -14,29 +14,18 @@ import time
 import traceback
 import types
 import urllib2
+import kudu_utils
 try:
     import ujson
 except ImportError:
     import json as ujson
-
-LOG = logging.getLogger()
-handler = RotatingFileHandler('log/kudu.log',
-                              mode='a',
-                              maxBytes=100*1024*1024,
-                              backupCount=10)
-handler.setFormatter(
-    logging.Formatter(
-        fmt='%(asctime)s [%(thread)d] [%(levelname)s] %(filename)s:%(lineno)d %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'))
-LOG.addHandler(handler)
-LOG.setLevel(logging.INFO)
 
 g_metric_types_inited = False
 g_metric_type = {'replica_count': 'GAUGE'}
 g_last_metric_urls_updated_time = 0
 g_is_running = True
 g_args = {}
-g_kudu_bin = 'kudu'
+g_kudu_bin = kudu_utils.g_script_path + '/kudu'
 
 """ origin metrics are as follows, but we only use `percentile_99` now
 """
@@ -58,7 +47,7 @@ g_percentiles = ['percentile_99']
 
 def collector_assert(condition, msg):
     if not condition:
-        LOG.error(msg)
+        kudu_utils.LOG.error(msg)
 
 
 def interruptable_sleep(sec):
@@ -80,10 +69,10 @@ def update_metric_urls(host_urls, cur_time, role):
     global g_last_metric_urls_updated_time
     if cur_time - g_last_metric_urls_updated_time < 300:    # update_metric_urls every 5 minutes
         return host_urls
-    LOG.info('Start to update_metric_urls()')
-    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d'\
-          % (g_kudu_bin, role, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
-    LOG.info('request server list: %s' % cmd)
+    kudu_utils.LOG.info('Start to update_metric_urls()')
+    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d 2>/dev/null'\
+          % (g_kudu_bin, role, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
+    kudu_utils.LOG.info('request server list: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     host_urls = {}
     if status == 0:
@@ -95,7 +84,7 @@ def update_metric_urls(host_urls, cur_time, role):
                 url += '&origin=false&merge=true'
             host_urls[get_hostname(entry['http-addresses'])] = url
     else:
-        LOG.warning('request server list failed, error: %d %s' % (status, output))
+        kudu_utils.LOG.warning('request server list failed, error: %d %s' % (status, output))
     g_last_metric_urls_updated_time = cur_time
     return host_urls
 
@@ -108,14 +97,14 @@ def push_to_falcon_agent(origin_data):
         data = ujson.dumps(origin_data)
         request = urllib2.Request(g_args.falcon_url, data)
         response = urllib2.urlopen(request).read()         # TODO async
-        LOG.info('Pushed %d data to %s. response=%s' % (len(data), g_args.falcon_url, response))
+        kudu_utils.LOG.info('Pushed %d data to %s. response=%s' % (len(data), g_args.falcon_url, response))
     else:
-        LOG.info(ujson.dumps(origin_data, indent=2))
+        kudu_utils.LOG.info(ujson.dumps(origin_data, indent=2))
 
 
 def get_origin_metric(url):
     global g_args
-    LOG.info('Start to get_origin_metric()')
+    kudu_utils.LOG.info('Start to get_origin_metric()')
     request = urllib2.Request(url)
     request.add_header('Accept-encoding', 'gzip')
     try:
@@ -126,7 +115,7 @@ def get_origin_metric(url):
         else:
             return response.read()
     except Exception as e:
-        LOG.error('url: %s, error: %s' % (url, e))
+        kudu_utils.LOG.error('url: %s, error: %s' % (url, e))
         return '[]'
 
 
@@ -137,7 +126,7 @@ def init_metric_types_once(host_urls, timeout):
     global g_metric_types_inited
     if g_metric_types_inited:
         return
-    LOG.info('Start to init_metric_types_once()')
+    kudu_utils.LOG.info('Start to init_metric_types_once()')
     for host_url in host_urls.values():
         origin_metric = get_origin_metric(host_url + '&include_schema=1')
         for block in ujson.loads(origin_metric):
@@ -189,7 +178,7 @@ def parse_tablet_metrics(block,
     for metric in block['metrics']:
         metric_name = metric['name']
         if metric_name not in g_metric_type:
-            LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
+            kudu_utils.LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
             continue
         if g_metric_type[metric_name] in ['GAUGE', 'COUNTER']:
             metric_value = metric['value']
@@ -260,7 +249,7 @@ def parse_table_metrics(block,
     for metric in block['metrics']:
         metric_name = metric['name']
         if metric_name not in g_metric_type:
-            LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
+            kudu_utils.LOG.error('metric %s not in g_metric_type %s' % (metric_name, str(g_metric_type)))
             continue
         if g_metric_type[metric_name] in ['GAUGE', 'COUNTER']:
             metric_value = metric['value']
@@ -307,7 +296,7 @@ def parse_table_metrics(block,
 
 def get_host_metrics(hostname, url):
     global g_args
-    LOG.info('Start get metrics from [%s]' % url)
+    kudu_utils.LOG.info('Start get metrics from [%s]' % url)
     metrics_json_str = get_origin_metric(url)
 
     host_metrics = {}
@@ -444,14 +433,14 @@ def get_table_health_status(status):
 
 def get_health_falcon_data():
     global g_args
-    LOG.info('Start to get_health_falcon_data()')
+    kudu_utils.LOG.info('Start to get_health_falcon_data()')
     ksck_falcon_data = []
     cmd = '%s cluster ksck %s -consensus=false'\
           ' -ksck_format=json_compact -color=never'\
           ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'\
           ' -timeout_ms=%d 2>/dev/null'\
-          % (g_kudu_bin, g_args.kudu_master_rpcs, 1000*g_args.get_metrics_timeout)
-    LOG.info('request cluster ksck info: %s' % cmd)
+          % (g_kudu_bin, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
+    kudu_utils.LOG.info('request cluster ksck info: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
     if status == 0 or status == 256:
         timestamp = int(time.time())
@@ -482,7 +471,7 @@ def get_health_falcon_data():
                                           metric_value=get_table_health_status(table['health']),
                                           counter_type='GAUGE'))
     else:
-        LOG.error('failed to fetch ksck info. status: %d, output: %s' % (status, output))
+        kudu_utils.LOG.error('failed to fetch ksck info. status: %d, output: %s' % (status, output))
 
     push_to_falcon_agent(ksck_falcon_data)
 
@@ -490,7 +479,7 @@ def get_health_falcon_data():
 def main_loop():
     global g_args
     global g_is_running
-    LOG.info('Start to main_loop()')
+    kudu_utils.LOG.info('Start to main_loop()')
     host_urls = {}
     while g_is_running:
         start = time.time()
@@ -498,7 +487,7 @@ def main_loop():
         host_urls = update_metric_urls(host_urls, start, 'tserver')
         init_metric_types_once(host_urls, g_args.get_metrics_timeout)
         if len(host_urls) == 0:
-            LOG.warn('Detect 0 hosts, try to fetch hosts later')
+            kudu_utils.LOG.warn('Detect 0 hosts, try to fetch hosts later')
             interruptable_sleep(10)
             continue
 
@@ -522,7 +511,7 @@ def main_loop():
                 try:
                     host_tables_metrics, host_tables_metrics_histogram = result.get()
                 except Exception as e:
-                    LOG.error(traceback.format_exc())
+                    kudu_utils.LOG.error(traceback.format_exc())
                     continue
 
                 # sum up table metrics
@@ -583,32 +572,32 @@ def main_loop():
 
             get_health_falcon_data()          # TODO put it into another process
         except Exception as e:
-            LOG.error(traceback.format_exc())
+            kudu_utils.LOG.error(traceback.format_exc())
 
         end = time.time()
         used_time = end - start
         left_time = g_args.metric_period - used_time
         if left_time > 0:
-            LOG.info('Sleep for %s seconds' % left_time)
+            kudu_utils.LOG.info('Sleep for %s seconds' % left_time)
             interruptable_sleep(left_time)
         else:
-            LOG.warn('Collect timeout, cost %f secs this time' % used_time)
-    LOG.warn('main_loop exit')
+            kudu_utils.LOG.warn('Collect timeout, cost %f secs this time' % used_time)
+    kudu_utils.LOG.warn('main_loop exit')
 
 
 def rebalance_cluster():
     global g_args
     global g_is_running
     if not g_args.rebalance_cluster:
-        LOG.warning('Cluster rebalance is disabled')
+        kudu_utils.LOG.warning('Cluster rebalance is disabled')
         return
 
     hour, minute = g_args.rebalance_time.split(':')
     if not int(hour) in range(0, 24) or not int(minute) in range(0, 60):
-        LOG.error('Cluster rebalance time is invalid')
+        kudu_utils.LOG.error('Cluster rebalance time is invalid')
         return
 
-    LOG.info('Start to rebalance_cluster()')
+    kudu_utils.LOG.info('Start to rebalance_cluster()')
     # min interval of rebalance, 12 hours is large enough,
     # because there is only 1 rebalance task everyday
     rebalance_min_interval = 12 * 3600
@@ -618,24 +607,24 @@ def rebalance_cluster():
                 and time.time() - last_rebalance_time > rebalance_min_interval:
             start = time.time()
             cmd = '%s cluster rebalance %s -tables=%s 2>/dev/null' \
-                  % (g_kudu_bin, g_args.kudu_master_rpcs, g_args.rebalance_tables)
-            LOG.info('request cluster rebalance info: %s' % cmd)
+                  % (g_kudu_bin, g_args.cluster_name, g_args.rebalance_tables)
+            kudu_utils.LOG.info('request cluster rebalance info: %s' % cmd)
             status, output = commands.getstatusoutput(cmd)
             if status == 0 or status == 256:
-                LOG.info('rebalance output: %s' % output)
+                kudu_utils.LOG.info('rebalance output: %s' % output)
             else:
-                LOG.error('failed to perform rebalance. status: %d, output: %s' % (status, output))
+                kudu_utils.LOG.error('failed to perform rebalance. status: %d, output: %s' % (status, output))
             end = time.time()
             last_rebalance_time = end
             used_time = end - start
-            LOG.info('Cluster rebalance cost %s seconds' % used_time)
+            kudu_utils.LOG.info('Cluster rebalance cost %s seconds' % used_time)
         else:
             interruptable_sleep(30)
-    LOG.info('rebalance_cluster exit')
+    kudu_utils.LOG.info('rebalance_cluster exit')
 
 
 def parse_command_line():
-    LOG.info('Start to parse_command_line()')
+    kudu_utils.LOG.info('Start to parse_command_line()')
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
                                      description='Collect apache kudu cluster metrics.')
 
@@ -686,7 +675,7 @@ def parse_command_line():
 
 
 def term_sig_handler(signum, _):
-    LOG.warn('pid %d ppid %d catch signal: %d' % (os.getpid(), os.getppid(), signum))
+    kudu_utils.LOG.warn('pid %d ppid %d catch signal: %d' % (os.getpid(), os.getppid(), signum))
     global g_is_running
     g_is_running = False
 
@@ -701,7 +690,7 @@ def main():
         t.start()
         main_loop()
     except KeyboardInterrupt:
-        LOG.warn('Collector terminated.')
+        kudu_utils.LOG.warn('Collector terminated.')
         global g_is_running
         g_is_running = False
 
