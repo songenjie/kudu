@@ -55,11 +55,15 @@ class Status;
 
 namespace client {
 class KuduSchema;
-}
+} // namespace client
+
+namespace cluster {
+class ExternalTabletServer;
+} // namespace cluster
 
 namespace consensus {
 class OpId;
-}
+} // namespace consensus
 
 namespace master {
 class MasterServiceProxy;
@@ -67,7 +71,7 @@ class MasterServiceProxy;
 
 namespace rpc {
 class Messenger;
-}
+} // namespace rpc
 
 namespace itest {
 
@@ -443,6 +447,11 @@ Status GetInt64Metric(const HostPort& http_hp,
                       const char* value_field,
                       int64_t* value);
 
+// Retrieve the value of a given metric from tserver. The metric must be of
+// int64_t type.
+Status GetTsCounterValue(cluster::ExternalTabletServer* ets,
+                         MetricPrototype* metric,
+                         int64_t* value);
 
 } // namespace itest
 } // namespace kudu

@@ -42,6 +42,7 @@
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/master/master.pb.h"
 #include "kudu/master/master.proxy.h"
+#include "kudu/mini-cluster/external_mini_cluster.h"
 #include "kudu/rpc/rpc_controller.h"
 #include "kudu/rpc/rpc_header.pb.h"
 #include "kudu/tablet/tablet.pb.h"
@@ -67,6 +68,7 @@ namespace itest {
 
 using client::KuduSchema;
 using client::KuduSchemaBuilder;
+using cluster::ExternalTabletServer;
 using consensus::BulkChangeConfigRequestPB;
 using consensus::ChangeConfigRequestPB;
 using consensus::ChangeConfigResponsePB;
@@ -1222,6 +1224,18 @@ Status GetInt64Metric(const HostPort& http_hp,
   }
   return Status::NotFound(msg);
 }
+
+Status GetTsCounterValue(ExternalTabletServer* ets,
+                         MetricPrototype* metric,
+                         int64_t* value) {
+  return GetInt64Metric(ets->bound_http_hostport(),
+                        &METRIC_ENTITY_server,
+                        "kudu.tabletserver",
+                        metric,
+                        "value",
+                        value);
+}
+
 
 } // namespace itest
 } // namespace kudu

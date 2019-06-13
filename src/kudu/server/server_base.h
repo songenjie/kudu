@@ -209,10 +209,19 @@ class ServerBase {
   Status StartExcessLogFileDeleterThread();
   void ExcessLogFileDeleterThread();
 
+#ifdef TCMALLOC_ENABLED
+  // Start thread to GC tcmalloc allocated memory.
+  Status StartTcmallocMemoryGcThread();
+  void TcmallocMemoryGcThread();
+#endif
+
   ServerBaseOptions options_;
 
   std::unique_ptr<DiagnosticsLog> diag_log_;
   scoped_refptr<Thread> excess_log_deleter_thread_;
+#ifdef TCMALLOC_ENABLED
+  scoped_refptr<Thread> tcmalloc_memory_gc_thread_;
+#endif
   CountDownLatch stop_background_threads_latch_;
 
   gscoped_ptr<ScopedGLogMetrics> glog_metrics_;
