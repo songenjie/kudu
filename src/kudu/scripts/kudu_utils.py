@@ -8,8 +8,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-git_repo_dir = ''
 LOG = logging.getLogger()
+g_git_repo_dir = ''
+g_time = datetime.datetime.now()
+
 
 def init_log(path):
     handler = RotatingFileHandler('%s/kudu.log' % path,
@@ -37,19 +39,45 @@ def script_path():
     return os.path.split(os.path.realpath(__file__))[0]
 
 
-def prepare_pricing_data_path(last_month):
-    time = datetime.datetime.now()
+def get_year(last_month):
+    time = g_time
     if last_month:
         time += dateutil.relativedelta.relativedelta(months=-1)
-    data_path = script_path() + '/year=' + time.strftime('%Y')
+    return time.strftime('%Y')
+
+
+def get_month(last_month):
+    time = g_time
+    if last_month:
+        time += dateutil.relativedelta.relativedelta(months=-1)
+    return time.strftime('%m')
+
+
+def prepare_pricing_month_path(last_month=False):
+    data_path = script_path() + '/year=' + get_year(last_month)
     make_dir(data_path)
-    data_path += '/month=' + time.strftime('%m')
+    data_path += '/month=' + get_month(last_month)
     make_dir(data_path)
-    return data_path
+    return data_path + '/'
+
+
+def get_year_month(last_month):
+    return get_year(last_month) + '-' + get_month(last_month)
+
+
+def get_date():
+    time = g_time
+    return time.strftime('%Y-%m-%d')
+
+
+def get_date_list(start, end, step=1, format="%Y-%m-%d"):
+    strptime, strftime = datetime.datetime.strptime, datetime.datetime.strftime
+    days = (strptime(end, format) - strptime(start, format)).days
+    return [strftime(strptime(start, format) + datetime.timedelta(i), format) for i in xrange(0, days, step)]
 
 
 def push_file_to_repo(filenames):
-    repo = Repo(git_repo_dir)
+    repo = Repo(g_git_repo_dir)
     assert not repo.bare
 
     remote = repo.remote()
@@ -66,6 +94,3 @@ def push_file_to_repo(filenames):
 
 g_script_path = script_path()
 init_log(g_script_path)
-if not os.path.exists(git_repo_dir + '/.git'):
-    LOG.fatal('You must set `git_repo_dir` to a valid directory contains `.git`')
-    exit(1)
