@@ -136,10 +136,15 @@
       "replica_count" : [
           "metric=replica_count service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
-      "cluster_available" : [
+      "cluster" : [
           "metric=kudu.success service=kudu level=${level}",
           "metric=kudu.writeLatency service=kudu level=${level}",
-          "metric=kudu.scanLatency service=kudu level=${level}"
+          "metric=kudu.scanLatency service=kudu level=${level}",
+          "metric=cluster_stat service=kudu level=${level}",
+          "metric=healthy_table_proportion service=kudu level=${level}"
+      ],
+      "cluster_data_size" : [
+          "metric=total_data_size service=kudu level=${level}"
       ],
       "sys" : [
           "cpu.busy",
@@ -246,7 +251,35 @@
           "endpoints": ["${cluster.name}"],
           "counters": {
             "level": "cluster",
-            "template": "cluster_available"
+            "template": "cluster"
+          },
+          "graph_type": "h",
+          "method": "",
+          "timespan": 86400
+        },
+        {
+          "title": "集群统计信息",
+          "endpoints": [
+            "masters_count",
+            "tservers_count",
+            "tables_count",
+            "tablets_count",
+            "replicas_count"
+          ],
+          "counters": {
+            "level": "cluster",
+            "template": "cluster"
+          },
+          "graph_type": "h",
+          "method": "",
+          "timespan": 86400
+        },
+        {
+          "title": "集群总数据量",
+          "endpoints": ["${cluster.name}"],
+          "counters": {
+            "level": "cluster",
+            "template": "cluster_data_size"
           },
           "graph_type": "h",
           "method": "",

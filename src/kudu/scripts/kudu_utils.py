@@ -13,8 +13,10 @@ g_git_repo_dir = ''
 g_time = datetime.datetime.now()
 
 
-def init_log(path):
-    handler = RotatingFileHandler('%s/kudu.log' % path,
+def init_log():
+    if not os.path.exists('log/'):
+        os.makedirs('log')
+    handler = RotatingFileHandler('log/kudu.log',
                                   mode='a',
                                   maxBytes=100*1024*1024,
                                   backupCount=10)
@@ -93,4 +95,4 @@ def push_file_to_repo(filenames):
 
 
 g_script_path = script_path()
-init_log(g_script_path)
+init_log()

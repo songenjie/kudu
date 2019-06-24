@@ -25,7 +25,13 @@ g_metric_type = {'replica_count': 'GAUGE'}
 g_last_metric_urls_updated_time = 0
 g_is_running = True
 g_args = {}
-g_kudu_bin = kudu_utils.g_script_path + '/kudu'
+if os.path.exists(kudu_utils.g_script_path + '/kudu'):
+    g_kudu_bin = kudu_utils.g_script_path + '/kudu'
+elif os.path.exists(os.environ['KUDU_HOME'] + '/build/release/bin/kudu'):
+    g_kudu_bin = os.environ['KUDU_HOME'] + '/build/release/bin/kudu'
+else:
+    kudu_utils.LOG.warn('Could not find kudu bin path, exit.')
+    exit()
 
 """ origin metrics are as follows, but we only use `percentile_99` now
 """
@@ -294,6 +300,14 @@ def parse_table_metrics(block,
             collector_assert(False, '%s not support' % g_metric_type[metric_name])
 
 
+def get_on_disk_size(block):
+    data_size = 0
+    for metric in block['metrics']:
+        if metric['name'] == 'on_disk_size':
+            data_size += metric['value']
+    return data_size
+
+
 def get_host_metrics(hostname, url):
     global g_args
     kudu_utils.LOG.info('Start get metrics from [%s]' % url)
@@ -303,6 +317,7 @@ def get_host_metrics(hostname, url):
     host_metrics_histogram = {}
     tables_metrics = {}
     tables_metrics_histogram = {}
+    on_disk_size = 0
     for block in ujson.loads(metrics_json_str):
         if block['type'] == 'tablet':
             if (len(g_args.tables_set) == 0 or                                  # no table filter
@@ -316,6 +331,7 @@ def get_host_metrics(hostname, url):
                                      host_metrics_histogram)
                 # 'replica_count' is an extra metric
                 tables_metrics[block['attributes']['table_name']]['replica_count'] += 1
+            on_disk_size += get_on_disk_size(block)
         elif block['type'] == 'table':
             if (len(g_args.tables_set) == 0 or                                  # no table filter
                     block['id'] in g_args.tables_set):                          # table match
@@ -324,6 +340,7 @@ def get_host_metrics(hostname, url):
                                     tables_metrics_histogram,
                                     host_metrics,
                                     host_metrics_histogram)
+            on_disk_size += get_on_disk_size(block)
     host_falcon_data = []
     timestamp = int(time.time())
 
@@ -402,7 +419,7 @@ def get_host_metrics(hostname, url):
                                   counter_type='GAUGE'))
 
     push_to_falcon_agent(host_falcon_data)
-    return host_tables_metrics, host_tables_metrics_histogram
+    return host_tables_metrics, host_tables_metrics_histogram, on_disk_size
 
 
 def get_server_health_status(status):
@@ -437,7 +454,7 @@ def get_health_falcon_data():
     ksck_falcon_data = []
     cmd = '%s cluster ksck %s -consensus=false'\
           ' -ksck_format=json_compact -color=never'\
-          ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'\
+          ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES,TOTAL_COUNT'\
           ' -timeout_ms=%d 2>/dev/null'\
           % (g_kudu_bin, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
     kudu_utils.LOG.info('request cluster ksck info: %s' % cmd)
@@ -462,6 +479,8 @@ def get_health_falcon_data():
                                       metric_value=get_server_health_status(tserver['health']),
                                       counter_type='GAUGE'))
         if 'table_summaries' in ksck_info:
+            table_count = len(ksck_info['table_summaries'])
+            healthy_table_count = 0
             for table in ksck_info['table_summaries']:
                 ksck_falcon_data.append(
                     construct_falcon_item(endpoint=table['name'],
@@ -469,6 +488,25 @@ def get_health_falcon_data():
                                           level='table',
                                           timestamp=timestamp,
                                           metric_value=get_table_health_status(table['health']),
+                                          counter_type='GAUGE'))
+                if get_table_health_status(table['health']) == 0:
+                    healthy_table_count += 1
+        ksck_falcon_data.append(
+            construct_falcon_item(endpoint=g_args.cluster_name,
+                                  metric_name='healthy_table_proportion',
+                                  level='cluster',
+                                  timestamp=timestamp,
+                                  metric_value=int(100*healthy_table_count/table_count),
+                                  counter_type='GAUGE'))
+        if len(ksck_info['count_summaries']) == 1:
+            cluster_stat = ksck_info['count_summaries'][0]
+            for key, value in cluster_stat.items():
+                ksck_falcon_data.append(
+                    construct_falcon_item(endpoint=key+'_count',
+                                          metric_name='cluster_stat',
+                                          level='cluster',
+                                          timestamp=timestamp,
+                                          metric_value=value,
                                           counter_type='GAUGE'))
     else:
         kudu_utils.LOG.error('failed to fetch ksck info. status: %d, output: %s' % (status, output))
@@ -507,9 +545,10 @@ def main_loop():
 
             tables_metrics = {}
             tables_metrics_histogram = {}
+            cluster_total_data_size = 0
             for result in results:
                 try:
-                    host_tables_metrics, host_tables_metrics_histogram = result.get()
+                    host_tables_metrics, host_tables_metrics_histogram, on_disk_size = result.get()
                 except Exception as e:
                     kudu_utils.LOG.error(traceback.format_exc())
                     continue
@@ -531,6 +570,9 @@ def main_loop():
                         if metric not in tables_metrics_histogram[table].keys():
                             tables_metrics_histogram[table][metric] = []
                         tables_metrics_histogram[table][metric].append(hist_list)
+
+                # sum up on_disk_size
+                cluster_total_data_size += on_disk_size
 
             # table level
             for table, metrics in tables_metrics.iteritems():
@@ -564,6 +606,15 @@ def main_loop():
                                               timestamp=timestamp,
                                               metric_value=value,
                                               counter_type='GAUGE'))
+
+            #cluster_level
+            push_to_falcon_agent([
+                construct_falcon_item(endpoint=g_args.cluster_name,
+                                      metric_name='total_data_size',
+                                      level='cluster',
+                                      timestamp=timestamp,
+                                      metric_value=cluster_total_data_size,
+                                      counter_type='GAUGE')])
 
             push_to_falcon_agent(table_falcon_data)
 
@@ -651,7 +702,7 @@ def parse_command_line():
 
     parser.add_argument('--metrics', type=str, help='Metrics to collect',
                         required=False, default='')
-                        
+
     parser.add_argument('--rebalance_cluster', dest='rebalance_cluster',
                         help='Whether to rebalance cluster regularly',
                         action='store_true')

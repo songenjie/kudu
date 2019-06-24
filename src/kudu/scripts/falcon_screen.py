@@ -205,12 +205,14 @@ def prepare_screen_config(clusterName, screenTemplateFile, tableListFile, master
                 if len(endpoint) != 0:
                     if endpoint.find("${cluster.name}") != -1:
                         newEndpoints.append(endpoint.replace("${cluster.name}", clusterName))
-                    if endpoint.find("${for.each.master}") != -1:
+                    elif endpoint.find("${for.each.master}") != -1:
                         newEndpoints += masterList
-                    if endpoint.find("${for.each.tserver}") != -1:
+                    elif endpoint.find("${for.each.tserver}") != -1:
                         newEndpoints += tserverList
-                    if endpoint.find("${for.each.table}") != -1:
+                    elif endpoint.find("${for.each.table}") != -1:
                         newEndpoints += tableList
+                    else:
+                        newEndpoints.append(endpoint)
             newEndpoints = list(set(newEndpoints))
             if len(newEndpoints) == 0:
                 print("WARN: bad json: [details][%s][graphs][%s]: [endpoints] should be provided as non-empty list"
