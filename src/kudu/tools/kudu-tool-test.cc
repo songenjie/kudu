@@ -2361,7 +2361,13 @@ TEST_F(ToolTest, TestNonRandomWorkloadLoadgen) {
 
 TEST_F(ToolTest, TestPerfTableScan) {
   const string& kTableName = "perf.table_scan";
-  NO_FATALS(RunLoadgen(1, { "--run_cleanup=false", "--run_scan" }, kTableName));
+  NO_FATALS(RunLoadgen(1,
+      {
+        "--keep_auto_table=true",
+        "--run_cleanup=false",
+        "--run_scan",
+      },
+      kTableName));
   NO_FATALS(RunScanTableCheck(kTableName, "", 1, 2000, {}, "perf table_scan"));
 }
 
