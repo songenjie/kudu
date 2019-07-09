@@ -2151,6 +2151,7 @@ TEST_F(ToolTest, TestNonRandomWorkloadLoadgen) {
     "perf", "loadgen",
     cluster_->master()->bound_rpc_addr().ToString(),
     "--keep_auto_table",
+    "--run_cleanup=false",
 
     // Use the same number of threads as partitions so when we range partition,
     // each thread will be writing to a single tablet.
@@ -2182,7 +2183,13 @@ TEST_F(ToolTest, TestNonRandomWorkloadLoadgen) {
 
 TEST_F(ToolTest, TestPerfTableScan) {
   const string& kTableName = "perf.table_scan";
-  NO_FATALS(RunLoadgen(1, { "--keep_auto_table=true", "--run_scan" }, kTableName));
+  NO_FATALS(RunLoadgen(1,
+      {
+        "--keep_auto_table=true",
+        "--run_cleanup=false",
+        "--run_scan",
+      },
+      kTableName));
   NO_FATALS(RunScanTableCheck(kTableName, "", 1, 2000, {}, "perf table_scan"));
 }
 
