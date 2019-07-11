@@ -347,7 +347,21 @@ void VerifyMovesFromBlacklistTservers(const TestClusterConfig& cfg) {
     }
     EXPECT_TRUE(NoBlacklistTserversInClusterInfo(ci));
   }
-  EXPECT_EQ(cfg.expected_moves, moves);
+
+  const auto kMovesComparator = [](const TableReplicaMove& lhs,
+                                   const TableReplicaMove& rhs) {
+    if (lhs.table_id != rhs.table_id) {
+      return lhs.table_id < rhs.table_id;
+    }
+    if (lhs.from != rhs.from) {
+      return lhs.from < rhs.from;
+    }
+    return lhs.to < rhs.to;
+  };
+  vector<TableReplicaMove> ref_moves(cfg.expected_moves);
+  sort(ref_moves.begin(), ref_moves.end(), kMovesComparator);
+  sort(moves.begin(), moves.end(), kMovesComparator);
+  EXPECT_EQ(ref_moves, moves);
 }
 
 
@@ -1249,21 +1263,21 @@ TEST(RebalanceAlgoUnitTest, MovesFromBlacklistTservers) {
     {
       // No tablet at blacklist tserver.
       kNoLocations,
-      { "0", "1", },
+      { "0", "1", "2", },
       {
-        { "A", { 2, 0, } },
-        { "B", { 1, 0, } },
+        { "A", { 2, 0, 1} },
+        { "B", { 2, 0, 1} },
       },
       {},    // no expected_moves.
       {},
-      { "1", },
+      { "1", },   // blacklist_tservers
     },
     {
       // Balanced state, single table.
       kNoLocations,
-      { "0", "1", },
+      { "0", "1", "2", },
       {
-        { "A", { 1, 1, } },
+        { "A", { 1, 1, 1} },
       },
       {
         { "A", "1", "0" },
@@ -1276,35 +1290,15 @@ TEST(RebalanceAlgoUnitTest, MovesFromBlacklistTservers) {
       kNoLocations,
       { "0", "1", "2", },
       {
-        { "A", { 1, 1, 1, } },
-        { "B", { 1, 3, 1, } },
+        { "A", { 2, 0, 1, } },
+        { "B", { 0, 2, 1, } },
       },
       {
+        { "A", "2", "1" },
         { "B", "2", "0" },
-        { "A", "2", "0" },
       },
       {},
-      { "2", }
-    },
-    {
-      // Multiple tables, many moves.
-      kNoLocations,
-      { "0", "1", "2", "3", "4"},
-      {
-        { "A", { 2, 1, 1, 0, 0} },
-        { "B", { 0, 1, 3, 1, 0} },
-        { "C", { 1, 1, 2, 1, 1} },
-      },
-      {
-        { "C", "1", "3" },
-        { "B", "1", "4" },
-        { "A", "1", "3" },
-        { "C", "0", "4" },
-        { "A", "0", "4" },
-        { "A", "0", "3" },
-      },
-      {},
-      { "0", "1", }
+      { "2", }   // blacklist_tservers
     },
     {
       // Multiple locations.
@@ -1314,32 +1308,13 @@ TEST(RebalanceAlgoUnitTest, MovesFromBlacklistTservers) {
       },
       { "0", "1", "2", },
       {
-        { "A", { 1, 1, 1, } },
-        { "B", { 1, 1, 1, } },
+        { "A", { 1, 2, 0, } },
+        { "B", { 2, 1, 0, } },
       },
       {
-        { "B", "2", "0" },
-        { "A", "2", "1" },
-      },
-      {},
-      { "2", }
-    },
-    {
-      // Multiple locations with unbalanced state.
-      {
-        { "L0", { "0", "1", }, },
-        { "L1", { "2", }, },
-      },
-      { "0", "1", "2", },
-      {
-        { "A", { 0, 2, 2, } },
-        { "B", { 3, 2, 0, } },
-      },
-      {
+        { "A", "1", "2" },
+        { "A", "1", "2" },
         { "B", "1", "2" },
-        { "B", "1", "2" },
-        { "A", "1", "0" },
-        { "A", "1", "0" },
       },
       {},
       { "1", }
