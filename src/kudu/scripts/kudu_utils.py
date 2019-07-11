@@ -56,11 +56,13 @@ def get_month(last_month):
 
 
 def prepare_pricing_month_path(last_month=False):
-    data_path = script_path() + '/year=' + get_year(last_month)
+    month_base_path = script_path() + '/year=' + get_year(last_month)
+    make_dir(month_base_path)
+    month_base_path += '/month=' + get_month(last_month)
+    make_dir(month_base_path)
+    data_path = month_base_path + '/data'
     make_dir(data_path)
-    data_path += '/month=' + get_month(last_month)
-    make_dir(data_path)
-    return data_path + '/'
+    return month_base_path + '/', data_path + '/'
 
 
 def get_year_month(last_month):

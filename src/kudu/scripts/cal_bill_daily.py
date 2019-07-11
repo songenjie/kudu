@@ -14,8 +14,7 @@ import kudu_utils
 
 
 g_ignore_db_set = ('system', 'lcsbinlog', 'default', 'zhangxu_test_kudu')
-g_month_path = kudu_utils.prepare_pricing_month_path()
-g_month_data_path = g_month_path + 'data/'
+g_month_path, g_month_data_path = kudu_utils.prepare_pricing_month_path()
 g_usage_result_filename = g_month_path + 'tbl_usage.csv'
 g_clusters_info = json.loads(open(kudu_utils.g_script_path + '/cluster_info.json').read())
 g_commit_filenames = list()
