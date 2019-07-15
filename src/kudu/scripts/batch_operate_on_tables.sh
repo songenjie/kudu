@@ -59,5 +59,5 @@ fi
 
 while read TABLE
 do
-    ${BIN_PATH} table ${OPERATE} ${MASTERS} ${TABLE} ${DST_MASTERS} ${FLAGS}
+    ${BIN_PATH} table ${OPERATE} @${CLUSTER} ${TABLE} ${DST_CLUSTER} ${FLAGS}
 done < ${TABLE_LIST}

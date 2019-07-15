@@ -76,7 +76,7 @@ def update_metric_urls(host_urls, cur_time, role):
     if cur_time - g_last_metric_urls_updated_time < 300:    # update_metric_urls every 5 minutes
         return host_urls
     kudu_utils.LOG.info('Start to update_metric_urls()')
-    cmd = '%s %s list %s -columns=http-addresses -format=json -timeout_ms=%d 2>/dev/null'\
+    cmd = '%s %s list @%s -columns=http-addresses -format=json -timeout_ms=%d 2>/dev/null'\
           % (g_kudu_bin, role, g_args.cluster_name, 1000*g_args.get_metrics_timeout)
     kudu_utils.LOG.info('request server list: %s' % cmd)
     status, output = commands.getstatusoutput(cmd)
@@ -452,7 +452,7 @@ def get_health_falcon_data():
     global g_args
     kudu_utils.LOG.info('Start to get_health_falcon_data()')
     ksck_falcon_data = []
-    cmd = '%s cluster ksck %s -consensus=false'\
+    cmd = '%s cluster ksck @%s -consensus=false'\
           ' -ksck_format=json_compact -color=never'\
           ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES,TOTAL_COUNT'\
           ' -timeout_ms=%d 2>/dev/null'\
@@ -462,6 +462,7 @@ def get_health_falcon_data():
     if status == 0 or status == 256:
         timestamp = int(time.time())
         ksck_info = ujson.loads(output)
+        healthy_table_count = 0
         for master in ksck_info['master_summaries']:
             ksck_falcon_data.append(
                 construct_falcon_item(endpoint=get_hostname(master['address']),
@@ -479,8 +480,8 @@ def get_health_falcon_data():
                                       metric_value=get_server_health_status(tserver['health']),
                                       counter_type='GAUGE'))
         if 'table_summaries' in ksck_info:
-            table_count = len(ksck_info['table_summaries'])
             healthy_table_count = 0
+            table_count = len(ksck_info['table_summaries'])
             for table in ksck_info['table_summaries']:
                 ksck_falcon_data.append(
                     construct_falcon_item(endpoint=table['name'],
@@ -491,13 +492,13 @@ def get_health_falcon_data():
                                           counter_type='GAUGE'))
                 if get_table_health_status(table['health']) == 0:
                     healthy_table_count += 1
-        ksck_falcon_data.append(
-            construct_falcon_item(endpoint=g_args.cluster_name,
-                                  metric_name='healthy_table_proportion',
-                                  level='cluster',
-                                  timestamp=timestamp,
-                                  metric_value=int(100*healthy_table_count/table_count),
-                                  counter_type='GAUGE'))
+            ksck_falcon_data.append(
+                construct_falcon_item(endpoint=g_args.cluster_name,
+                                      metric_name='healthy_table_proportion',
+                                      level='cluster',
+                                      timestamp=timestamp,
+                                      metric_value=int(100*healthy_table_count/table_count),
+                                      counter_type='GAUGE'))
         if len(ksck_info['count_summaries']) == 1:
             cluster_stat = ksck_info['count_summaries'][0]
             for key, value in cluster_stat.items():
@@ -657,7 +658,7 @@ def rebalance_cluster():
         if time.strftime("%H:%M", time.localtime()) == g_args.rebalance_time \
                 and time.time() - last_rebalance_time > rebalance_min_interval:
             start = time.time()
-            cmd = '%s cluster rebalance %s -tables=%s 2>/dev/null' \
+            cmd = '%s cluster rebalance @%s -tables=%s 2>/dev/null' \
                   % (g_kudu_bin, g_args.cluster_name, g_args.rebalance_tables)
             kudu_utils.LOG.info('request cluster rebalance info: %s' % cmd)
             status, output = commands.getstatusoutput(cmd)

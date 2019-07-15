@@ -29,9 +29,9 @@ ALL_START_TIME=$((`date +%s`))
 echo
 
 # get master list
-${BIN_PATH}kudu master list ${MASTERS} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
+${BIN_PATH} master list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
 if [[ $? -ne 0 ]]; then
-    echo "`kudu master list ${MASTERS} -format=space` failed"
+    echo "`kudu master list @${CLUSTER} -format=space` failed"
     exit $?
 fi
 
@@ -42,9 +42,9 @@ if [[ ${MASTER_COUNT} -eq 0 ]]; then
 fi
 
 # get tserver list
-${BIN_PATH}kudu tserver list ${MASTERS} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
+${BIN_PATH} tserver list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
 if [[ $? -ne 0 ]]; then
-    echo "`kudu tserver list ${MASTERS} -format=space` failed"
+    echo "`kudu tserver list @${CLUSTER} -format=space` failed"
     exit $?
 fi
 
