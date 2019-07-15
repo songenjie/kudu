@@ -44,7 +44,7 @@ def get_host(host_port):
     return host_port.split(':')[0]
 
 def is_cluster_health():
-    status, output = commands.getstatusoutput('${KUDU_HOME}/kudu cluster ksck %s -consensus=false'
+    status, output = commands.getstatusoutput('${KUDU_HOME}/kudu cluster ksck @%s -consensus=false'
                                               ' -ksck_format=json_compact -color=never'
                                               ' -sections=MASTER_SUMMARIES,TSERVER_SUMMARIES,TABLE_SUMMARIES'
                                               ' 2>/dev/null'
