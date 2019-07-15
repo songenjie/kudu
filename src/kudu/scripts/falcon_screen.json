@@ -140,11 +140,13 @@
           "metric=kudu.success service=kudu level=${level}",
           "metric=kudu.writeLatency service=kudu level=${level}",
           "metric=kudu.scanLatency service=kudu level=${level}",
-          "metric=cluster_stat service=kudu level=${level}",
-          "metric=healthy_table_proportion service=kudu level=${level}"
+          "metric=healthy_table_proportion service=kudu cluster=${cluster.name} level=${level} v=3"
+      ],
+      "cluster_stat" : [ 
+        "metric=cluster_stat service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "cluster_data_size" : [
-          "metric=total_data_size service=kudu level=${level}"
+          "metric=total_data_size service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "sys" : [
           "cpu.busy",
@@ -268,7 +270,7 @@
           ],
           "counters": {
             "level": "cluster",
-            "template": "cluster"
+            "template": "cluster_stat"
           },
           "graph_type": "h",
           "method": "",

@@ -2,6 +2,7 @@
 # coding=utf-8
 
 import commands
+from git import Repo
 import heapq
 import logging
 from logging.handlers import RotatingFileHandler
@@ -11,14 +12,17 @@ import re
 import sys
 import time
 import kudu_utils
+import yaml
 
 
 g_ignore_db_set = ('system', 'lcsbinlog', 'default', 'zhangxu_test_kudu')
 g_month_path, g_month_data_path = kudu_utils.prepare_pricing_month_path()
 g_usage_result_filename = g_month_path + 'tbl_usage.csv'
-g_clusters_info = json.loads(open(kudu_utils.g_script_path + '/cluster_info.json').read())
+g_clusters_info_dict = yaml.load(open(kudu_utils.g_script_path + '/kudurc', 'r').read(), Loader=yaml.FullLoader)
+g_clusters_info = g_clusters_info_dict['clusters_info']
 g_commit_filenames = list()
 g_commit_filenames.append(g_usage_result_filename)
+g_git_repo_dir = ''
 
 
 def printtsr(level, table, size, reason):
@@ -56,12 +60,12 @@ def add_org_size(dbtable, org, size, org_size_desc):
     return True
 
 
-def get_org_size_desc_from_olap(master_rpcs, dbtable_size_dict, known_db_org_dict):
+def get_org_size_desc_from_olap(cluster_name, dbtable_size_dict, known_db_org_dict):
     db_org_dict = {}
     meta_table = 'system.kudu_table_owners'
-    cmd = '%s/kudu table scan %s %s -show_value=true' \
+    cmd = '%s/kudu table scan @%s %s -show_value=true' \
           ' -columns=name,db,org 2>&1 | grep "(string name=\\\""'\
-          % (kudu_utils.script_path(), master_rpcs, meta_table)
+          % (kudu_utils.script_path(), cluster_name, meta_table)
     status, output = commands.getstatusoutput(cmd)
     if status != 0:
         kudu_utils.LOG.error('Scan table %s error, status %d, output \n%s' % (meta_table, status, output))
@@ -119,7 +123,7 @@ def collect_origin_usage_for_cluster(cluster_name, cluster_info):
     cmd = '%s/kudu_metrics_collector_for_falcon.py --cluster_name=%s' \
           ' --local_stat --falcon_url="" --metrics=on_disk_size |' \
           ' egrep "^on_disk_size " | sort | awk \'{print $2, $3}\''\
-          % (kudu_utils.g_script_path, cluster_info['master_rpcs'])
+          % (kudu_utils.g_script_path, cluster_name)
     status, output = commands.getstatusoutput(cmd)
     if status != 0:
         kudu_utils.LOG.fatal('Table stat error')
@@ -133,7 +137,7 @@ def collect_origin_usage_for_cluster(cluster_name, cluster_info):
     known_db_org_dict = {}
     if 'special_db_org' in cluster_info.keys():
         known_db_org_dict = cluster_info['special_db_org']
-    org_size_desc = get_org_size_desc_from_olap(cluster_info['master_rpcs'], dbtable_size_dict, known_db_org_dict)
+    org_size_desc = get_org_size_desc_from_olap(cluster_name, dbtable_size_dict, known_db_org_dict)
 
     results = []
     date = time.strftime('%Y-%m-%d', time.localtime())
@@ -228,8 +232,24 @@ def create_usage_result_file_if_not_exist():
             usage_result_file.close()
 
 
+def push_file_to_repo(filenames):
+    repo = Repo(g_git_repo_dir)
+    assert not repo.bare
+
+    remote = repo.remote()
+    remote.pull()
+
+    index = repo.index
+    index.add(filenames)
+    index.commit('Kudu add statistics files')
+
+    remote.push()
+
+    kudu_utils.LOG.info('Pushed files %s to repo' % str(filenames))
+
+
 def main(argv=None):
-    if not os.path.exists(kudu_utils.g_git_repo_dir + '/.git'):
+    if not os.path.exists(g_git_repo_dir + '/.git'):
         kudu_utils.LOG.fatal('You must set `g_git_repo_dir` to a valid directory contains `.git`')
         return
 
@@ -255,7 +275,7 @@ def main(argv=None):
     date_list = [kudu_utils.get_date()]
     calc_usage_result_for_clusters(cluster_name_list, date_list)
 
-    kudu_utils.push_file_to_repo(g_commit_filenames)
+    push_file_to_repo(g_commit_filenames)
 
 
 if __name__ == "__main__":

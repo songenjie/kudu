@@ -76,7 +76,7 @@ copy_file ${BASE_DIR}/src/kudu/scripts/minos_control_server.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/cal_bill_daily.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/kudu_utils.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/start_local_kudu.sh ${PACK_DIR}/
-copy_file ${BASE_DIR}/cluster_info.json ${PACK_DIR}/
+copy_file ${BASE_DIR}/src/kudu/scripts/kudurc ${PACK_DIR}/
 copy_file -r ${BASE_DIR}/www ${PACK_DIR}/
 cd ${BASE_DIR}/build
 tar -czf ${PACKAGE} ${PACK_NAME}

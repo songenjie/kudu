@@ -3,13 +3,11 @@
 
 import datetime
 import dateutil.relativedelta
-from git import Repo
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 
 LOG = logging.getLogger()
-g_git_repo_dir = ''
 g_time = datetime.datetime.now()
 
 
@@ -80,21 +78,6 @@ def get_date_list(start, end, step=1, format="%Y-%m-%d"):
     return [strftime(strptime(start, format) + datetime.timedelta(i), format) for i in xrange(0, days, step)]
 
 
-def push_file_to_repo(filenames):
-    repo = Repo(g_git_repo_dir)
-    assert not repo.bare
-
-    remote = repo.remote()
-    remote.pull()
-
-    index = repo.index
-    index.add(filenames)
-    index.commit('Kudu add statistics files')
-
-    remote.push()
-
-    LOG.info('Pushed files %s to repo' % str(filenames))
-
-
 g_script_path = script_path()
+os.environ['KUDU_CONFIG'] = g_script_path
 init_log()
