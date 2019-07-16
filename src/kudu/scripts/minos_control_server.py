@@ -9,6 +9,7 @@ import time
 import json
 import re
 import os
+import subprocess
 
 master_rpcs = ''        # master rpc addresses
 cluster = ''            # cluster name in minos config
@@ -18,6 +19,8 @@ tasks = range(0, 5)     # an int element list, e.g. '[n]' for a single node, or 
 flags = ''              # minos flags, e.g. '--update_config' for updating config
 known_unhealth_nodes = set()
 #known_unhealth_nodes.add()    # it's ok to add some known unhealth nodes, e.g. some already stoped servers
+default_follower_unavailable_considered_failed_sec = 300    # default value of follower_unavailable_considered_failed_sec
+migrate_replicas_on_tservers = True  # whether to migrate replicas on tservers, if too many replicas on tservers, it should be False
 
 def get_minos_type(cluster_name):
     minos_type = 'null'
@@ -99,7 +102,7 @@ def wait_cluster_health():
 
 def parse_node_from_minos_output(output):
     host = ''
-    regex = re.compile('Stop task [0-9]+ of (tablet_server) on ([0-9a-z-.]+)\(0\).+')
+    regex = re.compile('[a-zA-Z\s]*[tT]ask [0-9]+ of (%s) on ([0-9a-z-.]+)\(0\).+' % job)
     match = regex.search(output)
     if match is not None:
         host = match.group(2)
@@ -108,6 +111,59 @@ def parse_node_from_minos_output(output):
 
 def time_header():
     return time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime())
+
+
+def get_tservers_info():
+    tservers_info = dict()
+    status, output = commands.getstatusoutput('${KUDU_HOME}/kudu tserver list @%s -format=json'
+                                              % cluster)
+    if status == 0 or status == 256:
+        tservers_info = json.loads(output)
+    return tservers_info
+
+
+def get_tablet_server_info(hostname, tservers_info):
+    rpc_address = ''
+    uuid = ''
+    for tserver in tservers_info:
+        if hostname in tserver['rpc-addresses']:
+            rpc_address = tserver['rpc-addresses']
+            uuid = tserver['uuid']
+            break
+    return rpc_address, uuid
+
+
+def set_flag(rpc_address, seconds):
+    cmd = ('${KUDU_HOME}/kudu tserver set_flag %s follower_unavailable_considered_failed_sec %s'
+           % (rpc_address, seconds))
+    print(time_header() + cmd)
+    status, output = commands.getstatusoutput(cmd)
+    print(time_header() + 'operate status: ' + str(status))
+
+
+def migrate_replicas_from_tserver(uuid):
+    cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -blacklist_tservers=%s' % (cluster, uuid))
+    print(time_header() + cmd)
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+    for line in iter(p.stdout.readline, b''):
+        print line
+    p.stdout.close()
+    p.wait()
+
+
+def rebalance_cluster():
+    ignored_tservers_uuid = set()
+    for node in known_unhealth_nodes:
+        rpc_address, uuid = get_tablet_server_info(node, tservers_info)
+        ignored_tservers_uuid.add(uuid)
+    cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -ignored_tservers=%s'
+           % (cluster, str(','.join(ignored_tservers_uuid))))
+    print(time_header() + cmd)
+    p = subprocess.Popen(cmd, stdout = subprocess.PIPE, shell=True)
+    for line in iter(p.stdout.readline, b''):
+        print line
+    p.stdout.close()
+    p.wait()
 
 
 check_parameter('You will operate on cluster: %s? (y/n)', cluster)
@@ -128,12 +184,30 @@ if operate == 'rolling_update' and flags.find('--update_package') == -1:
         flags += ' --confirm_install'
 check_parameter('The extra flags are: %s? (y/n)', flags, True)
 check_parameter('The known unhealth nodes are: %s? (y/n)', ','.join(known_unhealth_nodes), True)
+check_parameter('The default value of follower_unavailable_considered_failed_sec is: %s',
+                default_follower_unavailable_considered_failed_sec)
+check_parameter('You will migrate replicas on tservers: %s? (y/n)', migrate_replicas_on_tservers, True)
 
+tservers_info = get_tservers_info()
 wait_cluster_health()
 for task in tasks:
     if not isinstance(task, int):
         print(time_header() + '%s is not a valid integer task id' % str(task))
         exit()
+
+    if 'tablet_server' in job:
+        cmd = ('%s/deploy show kudu %s --job %s --task %d'
+          % (minos_client_path, cluster, job, task))
+        print(cmd)
+        status, output = commands.getstatusoutput(cmd)
+        print(output)
+        print(time_header() + 'operate status: ' + str(status))
+        hostname = parse_node_from_minos_output(output, job)
+        rpc_address, uuid = get_tablet_server_info(hostname, tservers_info)
+        if operate in ['restart', 'rolling_update']:
+            set_flag(rpc_address, 7200)
+        if migrate_replicas_on_tservers:
+            migrate_replicas_from_tserver(uuid)
 
     print(time_header() + 'Start to operate on task %d' % task)
     cmd = ('%s/deploy %s kudu %s --job %s --task %d --skip_confirm %s'
@@ -147,7 +221,13 @@ for task in tasks:
 
     wait_cluster_health()
 
+    if 'tablet_server' in job and operate in ['restart', 'rolling_update']:
+        set_flag(rpc_address, default_follower_unavailable_considered_failed_sec)
+
     print(time_header() + '==========================')
     time.sleep(10)
+
+if 'tablet_server' in job and migrate_replicas_on_tservers:
+    rebalance_cluster()
 
 print(time_header() + 'Complete sucessfully')
