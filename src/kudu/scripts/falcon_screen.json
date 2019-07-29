@@ -143,10 +143,13 @@
           "metric=healthy_table_proportion service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "cluster_stat" : [ 
-        "metric=cluster_stat service=kudu cluster=${cluster.name} level=${level} v=3"
-      ],
-      "cluster_data_size" : [
-          "metric=total_data_size service=kudu cluster=${cluster.name} level=${level} v=3"
+        "metric=masters_count service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=tservers_count service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=tables_count service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=tablets_count service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=replicas_count service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=on_disk_size service=kudu cluster=${cluster.name} level=${level} v=3",
+        "metric=on_disk_data_size service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "sys" : [
           "cpu.busy",
@@ -158,7 +161,7 @@
           "net.if.in.bytes/iface=eth0",
           "net.if.out.bytes/iface=eth0",
           "net.if.total.dropped/iface=eth0",
-          "sys.ntp.offset"
+          "sys.ntp.offset/procname=chronyd"
       ],
       "disk_usage_percent" : [
           "df.bytes.used.percent/fstype=ext4,mount=/home",
@@ -261,27 +264,10 @@
         },
         {
           "title": "集群统计信息",
-          "endpoints": [
-            "masters_count",
-            "tservers_count",
-            "tables_count",
-            "tablets_count",
-            "replicas_count"
-          ],
-          "counters": {
-            "level": "cluster",
-            "template": "cluster_stat"
-          },
-          "graph_type": "h",
-          "method": "",
-          "timespan": 86400
-        },
-        {
-          "title": "集群总数据量",
           "endpoints": ["${cluster.name}"],
           "counters": {
             "level": "cluster",
-            "template": "cluster_data_size"
+            "template": "cluster_stat"
           },
           "graph_type": "h",
           "method": "",

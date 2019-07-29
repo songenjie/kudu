@@ -300,12 +300,15 @@ def parse_table_metrics(block,
             collector_assert(False, '%s not support' % g_metric_type[metric_name])
 
 
-def get_on_disk_size(block):
-    data_size = 0
+def get_disk_size(block,
+                  on_disk_size,
+                  on_disk_data_size):
     for metric in block['metrics']:
         if metric['name'] == 'on_disk_size':
-            data_size += metric['value']
-    return data_size
+            on_disk_size += metric['value']
+        if metric['name'] == 'on_disk_data_size':
+            on_disk_data_size += metric['value']
+    return on_disk_size, on_disk_data_size
 
 
 def get_host_metrics(hostname, url):
@@ -318,6 +321,7 @@ def get_host_metrics(hostname, url):
     tables_metrics = {}
     tables_metrics_histogram = {}
     on_disk_size = 0
+    on_disk_data_size = 0
     for block in ujson.loads(metrics_json_str):
         if block['type'] == 'tablet':
             if (len(g_args.tables_set) == 0 or                                  # no table filter
@@ -331,7 +335,7 @@ def get_host_metrics(hostname, url):
                                      host_metrics_histogram)
                 # 'replica_count' is an extra metric
                 tables_metrics[block['attributes']['table_name']]['replica_count'] += 1
-            on_disk_size += get_on_disk_size(block)
+            on_disk_size, on_disk_data_size = get_disk_size(block, on_disk_size, on_disk_data_size)
         elif block['type'] == 'table':
             if (len(g_args.tables_set) == 0 or                                  # no table filter
                     block['id'] in g_args.tables_set):                          # table match
@@ -340,7 +344,7 @@ def get_host_metrics(hostname, url):
                                     tables_metrics_histogram,
                                     host_metrics,
                                     host_metrics_histogram)
-            on_disk_size += get_on_disk_size(block)
+            on_disk_size, on_disk_data_size = get_disk_size(block, on_disk_size, on_disk_data_size)
     host_falcon_data = []
     timestamp = int(time.time())
 
@@ -419,7 +423,7 @@ def get_host_metrics(hostname, url):
                                   counter_type='GAUGE'))
 
     push_to_falcon_agent(host_falcon_data)
-    return host_tables_metrics, host_tables_metrics_histogram, on_disk_size
+    return host_tables_metrics, host_tables_metrics_histogram, on_disk_size, on_disk_data_size
 
 
 def get_server_health_status(status):
@@ -503,8 +507,8 @@ def get_health_falcon_data():
             cluster_stat = ksck_info['count_summaries'][0]
             for key, value in cluster_stat.items():
                 ksck_falcon_data.append(
-                    construct_falcon_item(endpoint=key+'_count',
-                                          metric_name='cluster_stat',
+                    construct_falcon_item(endpoint=g_args.cluster_name,
+                                          metric_name=key+'_count',
                                           level='cluster',
                                           timestamp=timestamp,
                                           metric_value=value,
@@ -546,10 +550,11 @@ def main_loop():
 
             tables_metrics = {}
             tables_metrics_histogram = {}
-            cluster_total_data_size = 0
+            cluster_on_disk_size = 0
+            cluster_on_disk_data_size = 0
             for result in results:
                 try:
-                    host_tables_metrics, host_tables_metrics_histogram, on_disk_size = result.get()
+                    host_tables_metrics, host_tables_metrics_histogram, on_disk_size, on_disk_data_size = result.get()
                 except Exception as e:
                     kudu_utils.LOG.error(traceback.format_exc())
                     continue
@@ -572,8 +577,9 @@ def main_loop():
                             tables_metrics_histogram[table][metric] = []
                         tables_metrics_histogram[table][metric].append(hist_list)
 
-                # sum up on_disk_size
-                cluster_total_data_size += on_disk_size
+                # sum up disk size
+                cluster_on_disk_size += on_disk_size
+                cluster_on_disk_data_size += on_disk_data_size
 
             # table level
             for table, metrics in tables_metrics.iteritems():
@@ -611,10 +617,16 @@ def main_loop():
             #cluster_level
             push_to_falcon_agent([
                 construct_falcon_item(endpoint=g_args.cluster_name,
-                                      metric_name='total_data_size',
+                                      metric_name='on_disk_size',
                                       level='cluster',
                                       timestamp=timestamp,
-                                      metric_value=cluster_total_data_size,
+                                      metric_value=cluster_on_disk_size,
+                                      counter_type='GAUGE'),
+                construct_falcon_item(endpoint=g_args.cluster_name,
+                                      metric_name='on_disk_data_size',
+                                      level='cluster',
+                                      timestamp=timestamp,
+                                      metric_value=cluster_on_disk_data_size,
                                       counter_type='GAUGE')])
 
             push_to_falcon_agent(table_falcon_data)
