@@ -19,7 +19,7 @@ flags = ''              # minos flags, e.g. '--update_config' for updating confi
 known_unhealth_nodes = set()
 #known_unhealth_nodes.add()    # it's ok to add some known unhealth nodes, e.g. some already stoped servers
 default_follower_unavailable_considered_failed_sec = 300    # default value of follower_unavailable_considered_failed_sec
-migrate_replicas_on_tservers = True  # whether to migrate replicas on tservers, if too many replicas on tservers, it should be False
+rebalance_cluster_after_operation = True    # whether to rebalance cluster after operation
 
 def get_minos_type(cluster_name):
     minos_type = 'null'
@@ -105,6 +105,9 @@ def parse_node_from_minos_output(output, job):
     match = regex.search(output)
     if match is not None:
         host = match.group(2)
+    else:
+        print(time_header() + 'Fail to parse node from minos output')
+        exit()
     return host
 
 
@@ -140,23 +143,13 @@ def set_flag(rpc_address, seconds):
     print(time_header() + 'operate status: ' + str(status))
 
 
-def migrate_replicas_from_tserver(uuid):
-    cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -blacklist_tservers=%s' % (cluster, uuid))
-    print(time_header() + cmd)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-    for line in iter(p.stdout.readline, b''):
-        print line
-    p.stdout.close()
-    p.wait()
-
-
-def rebalance_cluster():
+def rebalance_cluster(blacklist_tserver_uuid):
     ignored_tservers_uuid = set()
     for node in known_unhealth_nodes:
         rpc_address, uuid = get_tablet_server_info(node, tservers_info)
         ignored_tservers_uuid.add(uuid)
-    cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -ignored_tservers=%s'
-           % (cluster, str(','.join(ignored_tservers_uuid))))
+    cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -blacklist_tservers=%s -ignored_tservers=%s'
+           % (cluster, blacklist_tserver_uuid, str(','.join(ignored_tservers_uuid))))
     print(time_header() + cmd)
     p = subprocess.Popen(cmd, stdout = subprocess.PIPE, shell=True)
     for line in iter(p.stdout.readline, b''):
@@ -184,10 +177,15 @@ check_parameter('The extra flags are: %s? (y/n)', flags, True)
 check_parameter('The known unhealth nodes are: %s? (y/n)', ','.join(known_unhealth_nodes), True)
 check_parameter('The default value of follower_unavailable_considered_failed_sec is: %s',
                 default_follower_unavailable_considered_failed_sec)
-check_parameter('You will migrate replicas on tservers: %s? (y/n)', migrate_replicas_on_tservers, True)
+check_parameter('You will rebalance cluster after operation? %s (y/n)', rebalance_cluster_after_operation, True)
 
 tservers_info = get_tservers_info()
 wait_cluster_health()
+
+if 'tablet_server' in job and operate in ['restart', 'rolling_update']:
+    for tserver in tservers_info:
+        set_flag(tserver['rpc-addresses'], 7200)
+
 for task in tasks:
     if not isinstance(task, int):
         print(time_header() + '%s is not a valid integer task id' % str(task))
@@ -202,10 +200,9 @@ for task in tasks:
         print(time_header() + 'operate status: ' + str(status))
         hostname = parse_node_from_minos_output(output, job)
         rpc_address, uuid = get_tablet_server_info(hostname, tservers_info)
-        if operate in ['restart', 'rolling_update']:
-            set_flag(rpc_address, 7200)
-        if migrate_replicas_on_tservers:
-            migrate_replicas_from_tserver(uuid)
+        if operate == 'stop':
+            # migrate replicas on tserver
+            rebalance_cluster(uuid)
 
     print(time_header() + 'Start to operate on task %d' % task)
     cmd = ('%s/deploy %s kudu %s --job %s --task %d --skip_confirm %s'
@@ -220,12 +217,16 @@ for task in tasks:
     wait_cluster_health()
 
     if 'tablet_server' in job and operate in ['restart', 'rolling_update']:
-        set_flag(rpc_address, default_follower_unavailable_considered_failed_sec)
+        set_flag(rpc_address, 7200)
 
     print(time_header() + '==========================')
     time.sleep(10)
 
-if 'tablet_server' in job and migrate_replicas_on_tservers:
-    rebalance_cluster()
+if 'tablet_server' in job and operate in ['restart', 'rolling_update']:
+    for tserver in tservers_info:
+        set_flag(tserver['rpc-addresses'], default_follower_unavailable_considered_failed_sec)
+
+if rebalance_cluster_after_operation:
+    rebalance_cluster('')
 
 print(time_header() + 'Complete sucessfully')

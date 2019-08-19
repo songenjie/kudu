@@ -91,7 +91,8 @@
           "metric=upserts_as_updates service=kudu cluster=${cluster.name} level=${level} v=3",
           "metric=write_op_duration_client_propagated_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=3",
           "metric=write_op_duration_commit_wait_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=3",
-          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=3"
+          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=3",
+          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "simple": [
           "metric=kudu-tserver-health service=kudu cluster=${cluster.name} level=${level} v=3",
@@ -131,7 +132,8 @@
           "metric=undo_delta_block_estimated_retained_bytes service=kudu cluster=${cluster.name} level=${level} v=3",
           "metric=upserts_as_updates service=kudu cluster=${cluster.name} level=${level} v=3",
           "metric=write_op_duration_client_propagated_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=3",
-          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=3"
+          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=3",
+          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=3"
       ],
       "replica_count" : [
           "metric=replica_count service=kudu cluster=${cluster.name} level=${level} v=3"
