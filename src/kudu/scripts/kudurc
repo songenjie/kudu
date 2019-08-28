@@ -3,7 +3,7 @@ clusters_info:
     olap_version: 2
     region: chnbj-idc
     charge_type: share
-    instance: SSD,
+    instance: SSD
     special_db_org:
       mifi: CL3894
       b2c: CL5281
