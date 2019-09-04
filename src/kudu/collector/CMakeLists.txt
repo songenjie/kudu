@@ -24,6 +24,7 @@ set(COLLECTOR_SRCS
   collector.cc
   collector_util.cc
   falcon_reporter.cc
+  local_reporter.cc
   metrics_collector.cc
   nodes_checker.cc)
 

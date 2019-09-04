@@ -39,9 +39,9 @@ namespace collector {
 
 class ReporterBase;
 
-class NodesChecker {
+class NodesChecker : public RefCounted<NodesChecker> {
  public:
-  explicit NodesChecker(std::shared_ptr<ReporterBase> reporter);
+  explicit NodesChecker(scoped_refptr<ReporterBase> reporter);
   ~NodesChecker();
 
   Status Init();
@@ -54,6 +54,8 @@ class NodesChecker {
   std::string GetFirstNode();
 
  private:
+  friend class RefCounted<NodesChecker>;
+
   FRIEND_TEST(TestNodesChecker, TestExtractServerHealthStatus);
   FRIEND_TEST(TestNodesChecker, TestExtractTableHealthStatus);
 
@@ -70,7 +72,7 @@ class NodesChecker {
 
   bool initialized_;
 
-  std::shared_ptr<ReporterBase> reporter_;
+  scoped_refptr<ReporterBase> reporter_;
 
   CountDownLatch stop_background_threads_latch_;
   scoped_refptr<Thread> nodes_checker_thread_;

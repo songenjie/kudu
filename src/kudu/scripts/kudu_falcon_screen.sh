@@ -2,9 +2,10 @@
 
 PID=$$
 BASE_DIR="$( cd "$( dirname "$0" )" && pwd )"
-BIN_PATH=${HOME}/kudu/build/release/bin/
-if [[ ! -f ${BIN_PATH}kudu ]]; then
-  echo "ERROR: kudu not found in ${BIN_PATH}"
+KUDU=${KUDU_HOME}/kudu
+COLLECTOR=${KUDU_HOME}/kudu-collector
+if [[ ! -f ${KUDU} || ! -f ${COLLECTOR} ]]; then
+  echo "ERROR: ${KUDU} or ${COLLECTOR} not found"
   exit 1
 fi
 
@@ -29,7 +30,7 @@ ALL_START_TIME=$((`date +%s`))
 echo
 
 # get master list
-${BIN_PATH} master list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
+${KUDU} master list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.master.list
 if [[ $? -ne 0 ]]; then
     echo "`kudu master list @${CLUSTER} -format=space` failed"
     exit $?
@@ -42,7 +43,7 @@ if [[ ${MASTER_COUNT} -eq 0 ]]; then
 fi
 
 # get tserver list
-${BIN_PATH} tserver list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
+${KUDU} tserver list @${CLUSTER} -format=space | awk -F' |:' '{print $2}' | sort -n &>/tmp/${UID}.${PID}.kudu.tserver.list
 if [[ $? -ne 0 ]]; then
     echo "`kudu tserver list @${CLUSTER} -format=space` failed"
     exit $?
@@ -55,15 +56,15 @@ if [[ ${TSERVER_COUNT} -eq 0 ]]; then
 fi
 
 # get table list
-python ${BASE_DIR}/kudu_metrics_collector_for_falcon.py --cluster_name=any --kudu_master_rpcs=${MASTERS} --falcon_url= --metrics=bytes_flushed,on_disk_data_size,scanner_rows_returned --local_stat > /tmp/${UID}.${PID}.kudu.metric_table_value
+${COLLECTOR} -collector_cluster_name=${CLUSTER} -collector_report_method=local -collector_metrics=bytes_flushed,on_disk_size,scanner_bytes_returned -log_dir=./log > /tmp/${UID}.${PID}.kudu.metric_table_value
 if [[ $? -ne 0 ]]; then
-    echo "ERROR: kudu_metrics_collector_for_falcon.py execute failed"
+    echo "ERROR: ${COLLECTOR} execute failed"
     exit 1
 fi
 
-cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^bytes_flushed" | sort -rnk3 | head -n ${TABLE_COUNT} | awk '{print $2}' > /tmp/${UID}.${PID}.kudu.top.bytes_flushed
-cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^on_disk_data_size" | sort -rnk3 | head -n ${TABLE_COUNT} | awk '{print $2}' > /tmp/${UID}.${PID}.kudu.top.on_disk_data_size
-cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^scanner_rows_returned" | sort -rnk3 | head -n ${TABLE_COUNT} | awk '{print $2}' > /tmp/${UID}.${PID}.kudu.top.scanner_rows_returned
+cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table bytes_flushed " | sort -rnk4 | head -n ${TABLE_COUNT} | awk '{print $3}' > /tmp/${UID}.${PID}.kudu.top.bytes_flushed
+cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table on_disk_size " | sort -rnk4 | head -n ${TABLE_COUNT} | awk '{print $3}' > /tmp/${UID}.${PID}.kudu.top.on_disk_size
+cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table scanner_bytes_returned " | sort -rnk4 | head -n ${TABLE_COUNT} | awk '{print $3}' > /tmp/${UID}.${PID}.kudu.top.scanner_bytes_returned
 cat /tmp/${UID}.${PID}.kudu.top.* | sort -n | uniq > /tmp/${UID}.${PID}.kudu.table.list
 echo "total `wc -l /tmp/${UID}.${PID}.kudu.table.list | awk '{print $1}'` tables to monitor"
 echo -e "\033[32m Please set the following one line to the kudu collector's \`tables\` argument manually\033[0m"

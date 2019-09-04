@@ -15,6 +15,45 @@ function copy_file() {
   fi  
 }
 
+function get_stdcpp_lib()
+{
+    libname=`ldd ${BASE_DIR}/build/latest/bin/kudu 2>/dev/null | grep libstdc++`
+    libname=`echo $libname | cut -f1 -d" "`
+    if [ $1 = "true" ]; then
+        gcc_path=`which gcc`
+        echo `dirname $gcc_path`/../lib64/$libname
+    else
+        libs=(`ldconfig -p|grep $libname|awk '{print $NF}'`)
+
+        for lib in ${libs[*]}; do
+            if [ "`check_bit $lib`" = "true" ]; then
+                echo "$lib"
+                return
+            fi
+        done;
+    fi
+}
+
+function check_bit()
+{
+    bit_mode=`getconf LONG_BIT`
+    lib=$1
+    check_bit=""
+    is_softlink=`file $lib | grep "symbolic link"`
+
+    if [ -z "$is_softlink" ]; then
+        check_bit=`file $lib |grep "$bit_mode-bit"`
+    else
+        real_lib_name=`ls -l $lib |awk '{print $NF}'`
+        lib_path=${lib%/*}
+        real_lib=${lib_path}"/"${real_lib_name}
+        check_bit=`file $real_lib |grep "$bit_mode-bit"`
+    fi
+    if [ -n "$check_bit" ]; then
+        echo "true"
+    fi
+}
+
 KUDU_VERSION=`cat ${BASE_DIR}/version.txt`
 OS=`lsb_release -d | awk '{print $2}'`
 echo "Start to build kudu $KUDU_VERSION on $OS"
@@ -64,14 +103,15 @@ PACKAGE=${PACK_NAME}.tar.gz
 rm -rf ${PACK_DIR} ${BASE_DIR}/build/${PACKAGE}
 mkdir -p ${PACK_DIR}
 echo "Coping files to $PACK_DIR"
+copy_file ${BASE_DIR}/build/latest/bin/kudu-collector ${PACK_DIR}/kudu_collector
 copy_file ${BASE_DIR}/build/latest/bin/kudu-master ${PACK_DIR}/kudu_master
 copy_file ${BASE_DIR}/build/latest/bin/kudu-tserver ${PACK_DIR}/kudu_tablet_server
 copy_file ${BASE_DIR}/build/latest/bin/kudu ${PACK_DIR}/
+copy_file `get_stdcpp_lib true` ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/batch_operate_on_tables.sh ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.json ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/kudu_falcon_screen.sh ${PACK_DIR}/
-copy_file ${BASE_DIR}/src/kudu/scripts/kudu_metrics_collector_for_falcon.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/minos_control_server.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/cal_bill_daily.py ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/kudu_utils.py ${PACK_DIR}/

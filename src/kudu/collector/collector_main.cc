@@ -21,6 +21,7 @@
 #include <glog/logging.h>
 
 #include "kudu/collector/collector.h"
+#include "kudu/collector/collector_util.h"
 #include "kudu/util/flags.h"
 #include "kudu/util/init.h"
 #include "kudu/util/logging.h"
@@ -57,7 +58,7 @@ static int CollectorMain(int argc, char** argv) {
   CHECK_OK(collector.Start());
 
   LOG(INFO) << "Collector successfully started.";
-  while (true) {
+  while (!RunOnceMode()) {
     SleepFor(MonoDelta::FromSeconds(60));
   }
 

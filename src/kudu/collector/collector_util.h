@@ -25,5 +25,8 @@ namespace kudu {
 namespace collector {
 
 std::string ExtractHostName(const std::string& url);
+
+bool RunOnceMode();
+
 } // namespace collector
 } // namespace kudu

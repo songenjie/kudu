@@ -21,6 +21,10 @@
 
 #include <stddef.h>
 
+#include <gflags/gflags_declare.h>
+
+DECLARE_string(collector_report_method);
+
 using std::string;
 
 namespace kudu {
@@ -32,6 +36,11 @@ string ExtractHostName(const string& url) {
     return url;
   }
   return url.substr(0, pos);
+}
+
+bool RunOnceMode() {
+  static bool run_once = (FLAGS_collector_report_method == "local");
+  return run_once;
 }
 } // namespace collector
 } // namespace kudu

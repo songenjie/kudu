@@ -25,6 +25,7 @@
 
 #include "kudu/collector/cluster_rebalancer.h"
 #include "kudu/collector/falcon_reporter.h"
+#include "kudu/collector/local_reporter.h"
 #include "kudu/collector/metrics_collector.h"
 #include "kudu/collector/nodes_checker.h"
 #include "kudu/collector/reporter_base.h"
@@ -75,16 +76,19 @@ Status Collector::Init() {
 
   if (FLAGS_collector_report_method == "falcon") {
     reporter_.reset(new FalconReporter());
+  } else if (FLAGS_collector_report_method == "local") {
+    reporter_.reset(new LocalReporter());
   } else {
-    LOG(FATAL) << "FLAGS_collector_report_method not set";
+    LOG(FATAL) << Substitute("Unsupported FLAGS_collector_report_method $0",
+                             FLAGS_collector_report_method);
   }
-  reporter_->Init();
+  CHECK_OK(reporter_->Init());
   nodes_checker_.reset(new NodesChecker(reporter_));
-  nodes_checker_->Init();
+  CHECK_OK(nodes_checker_->Init());
   metrics_collector_.reset(new MetricsCollector(nodes_checker_, reporter_));
-  metrics_collector_->Init();
+  CHECK_OK(metrics_collector_->Init());
   cluster_rebalancer_.reset(new ClusterRebalancer());
-  cluster_rebalancer_->Init();
+  CHECK_OK(cluster_rebalancer_->Init());
 
   initialized_ = true;
   return Status::OK();

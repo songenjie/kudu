@@ -51,10 +51,10 @@ namespace collector {
 class NodesChecker;
 class ReporterBase;
 
-class MetricsCollector {
+class MetricsCollector : public RefCounted<MetricsCollector> {
  public:
-  MetricsCollector(std::shared_ptr<NodesChecker> nodes_checker,
-                   std::shared_ptr<ReporterBase> reporter);
+  MetricsCollector(scoped_refptr<NodesChecker> nodes_checker,
+                   scoped_refptr<ReporterBase> reporter);
   ~MetricsCollector();
 
   Status Init();
@@ -64,6 +64,8 @@ class MetricsCollector {
   std::string ToString() const;
 
  private:
+  friend class RefCounted<MetricsCollector>;
+
   FRIEND_TEST(TestMetricsCollector, TestConvertStateToInt);
   FRIEND_TEST(TestMetricsCollector, TestGetHistValue);
   FRIEND_TEST(TestMetricsCollector, TestMergeToTableLevelMetrics);
@@ -184,8 +186,8 @@ class MetricsCollector {
 
   bool initialized_;
 
-  std::shared_ptr<NodesChecker> nodes_checker_;
-  std::shared_ptr<ReporterBase> reporter_;
+  scoped_refptr<NodesChecker> nodes_checker_;
+  scoped_refptr<ReporterBase> reporter_;
 
   std::map<std::string, MetricTypes> metric_types_by_entity_type_;
   // Attribute filter, attributes not in this map will be filtered if it's not empty.

@@ -44,13 +44,13 @@ TEST(TestFalconReporter, TestSerializeItems) {
   FLAGS_collector_interval_sec = 30;
   FLAGS_collector_cluster_name = "test";
   FLAGS_collector_falcon_metrics_version = 8;
-  FalconReporter reporter;
+  scoped_refptr<FalconReporter> reporter(new FalconReporter());
   list<scoped_refptr<ItemBase>> falcon_items;
   string data;
   ASSERT_OK(FalconReporter::SerializeItems(falcon_items, &data));
   ASSERT_EQ(data, "");
 
-  falcon_items.emplace_back(reporter.ConstructItem(
+  falcon_items.emplace_back(reporter->ConstructItem(
     "tserver1",
     "scan_count",
     "host",
@@ -67,7 +67,7 @@ TEST(TestFalconReporter, TestSerializeItems) {
                   FLAGS_collector_cluster_name,
                   FLAGS_collector_falcon_metrics_version));
 
-  falcon_items.emplace_back(reporter.ConstructItem(
+  falcon_items.emplace_back(reporter->ConstructItem(
     "table1",
     "disk_size",
     "table",
@@ -88,7 +88,7 @@ TEST(TestFalconReporter, TestSerializeItems) {
                   FLAGS_collector_falcon_metrics_version));
 }
 
-void GenerateItems(FalconReporter* reporter, int count) {
+void GenerateItems(const scoped_refptr<FalconReporter>& reporter, int count) {
   list<scoped_refptr<ItemBase>> items;
   for (int i = 0; i < count; ++i) {
     items.emplace_back(reporter->ConstructItem("endpoint", "metric", "level", 0, i, "GAUGE", ""));
@@ -97,24 +97,24 @@ void GenerateItems(FalconReporter* reporter, int count) {
 }
 
 TEST(TestFalconReporter, TestPushAndPopItems) {
-  FalconReporter reporter;
-  ASSERT_FALSE(reporter.HasItems());
-  NO_FATALS(GenerateItems(&reporter, 1));
-  ASSERT_TRUE(reporter.HasItems());
-  NO_FATALS(GenerateItems(&reporter, 9));
-  ASSERT_TRUE(reporter.HasItems());
+  scoped_refptr<FalconReporter> reporter(new FalconReporter());
+  ASSERT_FALSE(reporter->HasItems());
+  NO_FATALS(GenerateItems(reporter, 1));
+  ASSERT_TRUE(reporter->HasItems());
+  NO_FATALS(GenerateItems(reporter, 9));
+  ASSERT_TRUE(reporter->HasItems());
 
   list<scoped_refptr<ItemBase>> falcon_items;
-  reporter.PopItems(&falcon_items);
-  ASSERT_FALSE(reporter.HasItems());
+  reporter->PopItems(&falcon_items);
+  ASSERT_FALSE(reporter->HasItems());
   ASSERT_EQ(falcon_items.size(), 10);
 
-  NO_FATALS(GenerateItems(&reporter, 5));
-  ASSERT_TRUE(reporter.HasItems());
+  NO_FATALS(GenerateItems(reporter, 5));
+  ASSERT_TRUE(reporter->HasItems());
 
   list<scoped_refptr<ItemBase>> falcon_items2;
-  reporter.PopItems(&falcon_items2);
-  ASSERT_FALSE(reporter.HasItems());
+  reporter->PopItems(&falcon_items2);
+  ASSERT_FALSE(reporter->HasItems());
   ASSERT_EQ(falcon_items2.size(), 5);
 }
 }  // namespace collector

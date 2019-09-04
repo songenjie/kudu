@@ -48,7 +48,6 @@ DECLARE_int32(collector_warn_threshold_ms);
 
 using rapidjson::Value;
 using std::list;
-using std::shared_ptr;
 using std::string;
 using std::vector;
 using strings::Substitute;
@@ -58,7 +57,7 @@ using kudu::tools::KsckCheckResult;
 namespace kudu {
 namespace collector {
 
-NodesChecker::NodesChecker(shared_ptr<ReporterBase> reporter)
+NodesChecker::NodesChecker(scoped_refptr<ReporterBase> reporter)
   : initialized_(false),
     reporter_(std::move(reporter)),
     stop_background_threads_latch_(1) {
@@ -127,7 +126,7 @@ void NodesChecker::NodesCheckerThread() {
     check_time = MonoTime::Now();
     UpdateAndCheckNodes();
     check_time += MonoDelta::FromSeconds(FLAGS_collector_interval_sec);
-  } while (!stop_background_threads_latch_.WaitUntil(check_time));
+  } while (!RunOnceMode() && !stop_background_threads_latch_.WaitUntil(check_time));
   LOG(INFO) << "FalconPusherThread exit";
 }
 
@@ -152,7 +151,7 @@ Status NodesChecker::UpdateNodes() {
   vector<string> args = {
     "tserver",
     "list",
-    FLAGS_collector_cluster_name,
+    "@" + FLAGS_collector_cluster_name,
     "-columns=http-addresses",
     "-format=json",
     Substitute("-timeout_ms=$0", FLAGS_collector_timeout_sec*1000)
@@ -188,7 +187,7 @@ Status NodesChecker::CheckNodes() const {
   vector<string> args = {
     "cluster",
     "ksck",
-    FLAGS_collector_cluster_name,
+    "@" + FLAGS_collector_cluster_name,
     "-consensus=false",
     "-ksck_format=json_compact",
     "-color=never",

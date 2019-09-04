@@ -123,9 +123,9 @@ def get_service_usage_filename(date):
 def collect_origin_usage_for_cluster(cluster_name, cluster_info):
     kudu_utils.LOG.info('Start to collect usage info for cluster %s' % cluster_name)
     # Output: db.table size
-    cmd = '%s/kudu_metrics_collector_for_falcon.py --cluster_name=%s' \
-          ' --local_stat --falcon_url="" --metrics=on_disk_size |' \
-          ' egrep "^on_disk_size " | sort | awk \'{print $2, $3}\''\
+    cmd = '%s/kudu-collector -collector_cluster_name=%s ' \
+          '-collector_report_method=local -collector_metrics=on_disk_size -log_dir=./log | ' \
+          'egrep "^table on_disk_size " | sort | awk \'{print $3, $4}\'' \
           % (kudu_utils.g_script_path, cluster_name)
     status, output = commands.getstatusoutput(cmd)
     if status != 0:

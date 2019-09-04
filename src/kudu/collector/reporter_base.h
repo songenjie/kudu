@@ -40,9 +40,12 @@ namespace collector {
 
 struct ItemBase : public RefCounted<ItemBase> {
   virtual ~ItemBase() = default;
+
+ private:
+  friend class RefCounted<ItemBase>;
 };
 
-class ReporterBase {
+class ReporterBase : public RefCounted<ReporterBase> {
  public:
   virtual ~ReporterBase() = default;
 
@@ -61,6 +64,9 @@ class ReporterBase {
                                                 std::string counter_type,
                                                 std::string extra_tags) = 0;
   virtual Status PushItems(std::list<scoped_refptr<ItemBase>> items) = 0;
+
+ protected:
+  friend class RefCounted<ReporterBase>;
 };
 } // namespace collector
 } // namespace kudu

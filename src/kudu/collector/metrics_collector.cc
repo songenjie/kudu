@@ -56,7 +56,7 @@
 DEFINE_string(collector_attributes, "",
               "Entity attributes to collect (semicolon-separated list of entity attribute "
               "name and values). e.g. attr_name1:attr_val1,attr_val2;attr_name2:attr_val3");
-DEFINE_string(collector_cluster_level_metrics, "on_disk_size",
+DEFINE_string(collector_cluster_level_metrics, "on_disk_size,on_disk_data_size",
               "Metric names which should be merged and pushed to cluster level view "
               "(comma-separated list of metric names)");
 DEFINE_bool(collector_ignore_hosttable_level_metrics, false,
@@ -79,7 +79,6 @@ using rapidjson::Value;
 using std::list;
 using std::map;
 using std::set;
-using std::shared_ptr;
 using std::string;
 using std::vector;
 using std::unordered_map;
@@ -90,8 +89,8 @@ namespace collector {
 
 const set<string> MetricsCollector::kRegisterPercentiles = {"percentile_99"};
 
-MetricsCollector::MetricsCollector(shared_ptr<NodesChecker> nodes_checker,
-                                   shared_ptr<ReporterBase> reporter)
+MetricsCollector::MetricsCollector(scoped_refptr<NodesChecker> nodes_checker,
+                                   scoped_refptr<ReporterBase> reporter)
   : initialized_(false),
     nodes_checker_(std::move(nodes_checker)),
     reporter_(std::move(reporter)),
@@ -154,7 +153,7 @@ void MetricsCollector::MetricCollectorThread() {
     collect_time = MonoTime::Now();
     WARN_NOT_OK(CollectAndReportMetrics(), "Unable to collect metrics");
     collect_time += MonoDelta::FromSeconds(FLAGS_collector_interval_sec);
-  } while (!stop_background_threads_latch_.WaitUntil(collect_time));
+  } while (!RunOnceMode() && !stop_background_threads_latch_.WaitUntil(collect_time));
   LOG(INFO) << "MetricCollectorThread exit";
 }
 

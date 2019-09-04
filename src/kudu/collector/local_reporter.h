@@ -16,60 +16,42 @@
 // under the License.
 #pragma once
 
-#include <memory>
+#include <cstdint>
+#include <list>
 #include <string>
 
-#include <gtest/gtest_prod.h>
-
-#include "kudu/gutil/macros.h"
+#include "kudu/collector/reporter_base.h"
 #include "kudu/gutil/ref_counted.h"
-#include "kudu/util/countdown_latch.h"
 #include "kudu/util/status.h"
-
-namespace kudu {
-class Thread;
-}  // namespace kudu
 
 namespace kudu {
 
 namespace collector {
 
-class ClusterRebalancer;
-class MetricsCollector;
-class NodesChecker;
-class ReporterBase;
-
-class Collector {
+class LocalReporter : public ReporterBase {
  public:
-  Collector();
-  ~Collector();
+  LocalReporter();
+  ~LocalReporter() override;
 
-  Status Init();
-  Status Start();
-  void Shutdown();
+  Status Init() override;
+  Status Start() override;
+  void Shutdown() override;
 
-  std::string ToString() const;
+  std::string ToString() const override;
+
+  scoped_refptr<ItemBase> ConstructItem(std::string endpoint,
+                                        std::string metric,
+                                        std::string level,
+                                        uint64_t timestamp,
+                                        int64_t value,
+                                        std::string counter_type,
+                                        std::string extra_tags) override;
+
+  Status PushItems(std::list<scoped_refptr<ItemBase>> items) override;
 
  private:
-  FRIEND_TEST(TestCollector, TestValidateIntervalAndTimeout);
-
-  // Start thread to remove excess glog files.
-  Status StartExcessLogFileDeleterThread();
-  void ExcessLogFileDeleterThread();
-
-  static Status ValidateIntervalAndTimeout(int interval, int timeout);
-
   bool initialized_;
-
-  scoped_refptr<ReporterBase> reporter_;
-  scoped_refptr<MetricsCollector> metrics_collector_;
-  scoped_refptr<NodesChecker> nodes_checker_;
-  scoped_refptr<ClusterRebalancer> cluster_rebalancer_;
-
-  CountDownLatch stop_background_threads_latch_;
-  scoped_refptr<Thread> excess_log_deleter_thread_;
-
-  DISALLOW_COPY_AND_ASSIGN(Collector);
+  Mutex output_lock_;
 };
 } // namespace collector
 } // namespace kudu

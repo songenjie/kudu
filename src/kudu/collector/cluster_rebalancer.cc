@@ -27,6 +27,7 @@
 #include <gflags/gflags_declare.h>
 #include <glog/logging.h>
 
+#include "kudu/collector/collector_util.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/gutil/walltime.h"
 #include "kudu/tools/tool_test_util.h"
@@ -100,7 +101,7 @@ Status ClusterRebalancer::StartClusterRebalancerThread() {
 
 void ClusterRebalancer::ClusterRebalancerThread() {
   const MonoDelta kWait = MonoDelta::FromSeconds(60);
-  while (!stop_background_threads_latch_.WaitFor(kWait)) {
+  while (!RunOnceMode() && !stop_background_threads_latch_.WaitFor(kWait)) {
     string dst;
     StringAppendStrftime(&dst, "%H:%M", time(nullptr), true);
     if (dst == FLAGS_rebalance_time) {
@@ -113,7 +114,7 @@ Status ClusterRebalancer::RebalanceCluster() {
   vector<string> args = {
     "cluster",
     "rebalance",
-    FLAGS_collector_cluster_name
+    "@" + FLAGS_collector_cluster_name
   };
   string tool_stdout;
   string tool_stderr;

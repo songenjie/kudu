@@ -25,6 +25,7 @@
 #include <curl/curl.h>
 #include <glog/logging.h>
 
+#include "kudu/gutil/once.h"
 #include "kudu/gutil/strings/substitute.h"
 #include "kudu/security/openssl_util.h"
 #include "kudu/util/faststring.h"

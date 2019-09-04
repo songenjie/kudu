@@ -45,9 +45,9 @@ class ClusterRebalancer : public RefCounted<ClusterRebalancer> {
   std::string ToString() const;
 
  private:
-  FRIEND_TEST(TestClusterRebalancer, TestValidateHMTime);
-
   friend class RefCounted<ClusterRebalancer>;
+
+  FRIEND_TEST(TestClusterRebalancer, TestValidateHMTime);
 
   // Start thread to rebalance cluster.
   Status StartClusterRebalancerThread();

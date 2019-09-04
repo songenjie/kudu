@@ -31,6 +31,10 @@
 #include <gtest/gtest.h>
 #include <rapidjson/document.h>
 
+#include "kudu/collector/local_reporter.h"
+#include "kudu/collector/nodes_checker.h"
+#include "kudu/collector/reporter_base.h"
+#include "kudu/gutil/ref_counted.h"
 #include "kudu/util/jsonreader.h"
 #include "kudu/util/status.h"
 #include "kudu/util/test_macros.h"
@@ -50,6 +54,12 @@ using std::vector;
 
 namespace kudu {
 namespace collector {
+
+scoped_refptr<MetricsCollector> BuildCollector() {
+  scoped_refptr<ReporterBase> reporter(new LocalReporter());
+  scoped_refptr<NodesChecker> nodes_checker(new NodesChecker(reporter));
+  return new MetricsCollector(nodes_checker, reporter);
+}
 
 TEST(TestMetricsCollector, TestConvertStateToInt) {
   int64_t result = 1;
@@ -395,8 +405,8 @@ TEST(TestMetricsCollector, TestParseMetrics) {
   }
   // Check ParseTableMetrics.
   {
-    MetricsCollector collector(nullptr, nullptr);
-    collector.metric_types_by_entity_type_["tablet"] = {
+    auto collector = BuildCollector();
+    collector->metric_types_by_entity_type_["tablet"] = {
         {"test_metric", "COUNTER"},
         {"metric_counter1", "COUNTER"},
         {"metric_counter2", "COUNTER"},
@@ -512,7 +522,7 @@ TEST(TestMetricsCollector, TestParseMetrics) {
       MetricsCollector::TablesHistMetrics tables_hist_metrics;
       MetricsCollector::Metrics host_metrics;
       MetricsCollector::HistMetrics host_hist_metrics;
-      ASSERT_OK(collector.ParseMetrics(data,
+      ASSERT_OK(collector->ParseMetrics(data,
                                        &tables_metrics, &host_metrics,
                                        &tables_hist_metrics, &host_hist_metrics));
       ASSERT_EQ(tables_metrics, MetricsCollector::TablesMetrics({
@@ -583,13 +593,13 @@ TEST(TestMetricsCollector, TestParseMetrics) {
 
     // Attribute filter is not empty.
     {
-      collector.attributes_filter_ = {{"attr1", {"val1", "val2"}}};
+      collector->attributes_filter_ = {{"attr1", {"val1", "val2"}}};
 
       MetricsCollector::TablesMetrics tables_metrics;
       MetricsCollector::TablesHistMetrics tables_hist_metrics;
       MetricsCollector::Metrics host_metrics;
       MetricsCollector::HistMetrics host_hist_metrics;
-      ASSERT_OK(collector.ParseMetrics(data,
+      ASSERT_OK(collector->ParseMetrics(data,
                                        &tables_metrics, &host_metrics,
                                        &tables_hist_metrics, &host_hist_metrics));
       ASSERT_EQ(tables_metrics, MetricsCollector::TablesMetrics({
@@ -687,8 +697,8 @@ TEST(TestMetricsCollector, TestInitMetrics) {
       R"*(    ]                                                   )*"
       R"*(  }                                                     )*"
       R"*(]                                                       )*";
-  MetricsCollector collector(nullptr, nullptr);
-  ASSERT_OK(collector.InitMetrics());
+  auto collector = BuildCollector();
+  ASSERT_OK(collector->InitMetrics());
   map<string, MetricsCollector::MetricTypes> expect_metric_types({
       {
         "tablet",
@@ -707,13 +717,13 @@ TEST(TestMetricsCollector, TestInitMetrics) {
         }
       }
   });
-  ASSERT_EQ(collector.metric_types_by_entity_type_, expect_metric_types);
+  ASSERT_EQ(collector->metric_types_by_entity_type_, expect_metric_types);
 }
 
 TEST(TestMetricsCollector, TestInitFilters) {
   FLAGS_collector_attributes = "attr1:val1,val2;attr2:val1";
-  MetricsCollector collector(nullptr, nullptr);
-  ASSERT_OK(collector.InitFilters());
+  auto collector = BuildCollector();
+  ASSERT_OK(collector->InitFilters());
   unordered_map<string, set<string>> expect_attributes_filter({
       {
         "attr1",
@@ -724,7 +734,7 @@ TEST(TestMetricsCollector, TestInitFilters) {
         {"val1"}
       }
   });
-  ASSERT_EQ(collector.attributes_filter_, expect_attributes_filter);
+  ASSERT_EQ(collector->attributes_filter_, expect_attributes_filter);
 }
 
 #define CHECK_URL_PARAMETERS(metrics, request_merged, attributes, table_names, expect_url)        \
@@ -733,10 +743,10 @@ do {                                                                            
   FLAGS_collector_request_merged_metrics = request_merged;                                        \
   FLAGS_collector_attributes = attributes;                                                        \
   FLAGS_collector_table_names = table_names;                                                      \
-  MetricsCollector collector(nullptr, nullptr);                                                   \
-  ASSERT_OK(collector.InitFilters())                                                              \
-  ASSERT_OK(collector.InitMetricsUrlParameters());                                                \
-  ASSERT_EQ(collector.metric_url_parameters_, expect_url);                                        \
+  auto collector = BuildCollector();                                                              \
+  ASSERT_OK(collector->InitFilters())                                                             \
+  ASSERT_OK(collector->InitMetricsUrlParameters());                                               \
+  ASSERT_EQ(collector->metric_url_parameters_, expect_url);                                       \
 } while (false)
 
 TEST(TestMetricsCollector, TestInitMetricsUrlParameters) {
@@ -755,14 +765,14 @@ TEST(TestMetricsCollector, TestInitMetricsUrlParameters) {
 
 TEST(TestMetricsCollector, TestInitClusterLevelMetrics) {
   FLAGS_collector_cluster_level_metrics = "m1,m2,m3";
-  MetricsCollector collector(nullptr, nullptr);
-  ASSERT_OK(collector.InitClusterLevelMetrics());
+  auto collector = BuildCollector();
+  ASSERT_OK(collector->InitClusterLevelMetrics());
   MetricsCollector::Metrics cluster_metrics({
       {"m1", 0},
       {"m2", 0},
       {"m3", 0},
   });
-  ASSERT_EQ(collector.cluster_metrics_, cluster_metrics);
+  ASSERT_EQ(collector->cluster_metrics_, cluster_metrics);
 }
 }  // namespace collector
 }  // namespace kudu
