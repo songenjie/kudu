@@ -51,7 +51,7 @@ class NodesChecker : public RefCounted<NodesChecker> {
   std::string ToString() const;
 
   std::vector<std::string> GetNodes();
-  std::string GetFirstNode();
+  std::string GetFirstMaster();
 
  private:
   friend class RefCounted<NodesChecker>;
@@ -64,11 +64,15 @@ class NodesChecker : public RefCounted<NodesChecker> {
 
   void UpdateAndCheckNodes();
   Status UpdateNodes();
+  Status UpdateServers(const std::string& role);
   Status CheckNodes() const;
   Status ReportNodesMetrics(const std::string& data) const;
 
   static tools::KsckServerHealth ExtractServerHealthStatus(const std::string& health);
   static tools::KsckCheckResult ExtractTableHealthStatus(const std::string& health);
+
+  static const std::string kMaster;
+  static const std::string kTserver;
 
   bool initialized_;
 
@@ -77,8 +81,9 @@ class NodesChecker : public RefCounted<NodesChecker> {
   CountDownLatch stop_background_threads_latch_;
   scoped_refptr<Thread> nodes_checker_thread_;
 
-  mutable RWMutex tserver_http_addrs_lock_;
+  mutable RWMutex nodes_lock_;
   std::vector<std::string> tserver_http_addrs_;
+  std::vector<std::string> master_http_addrs_;
 
   DISALLOW_COPY_AND_ASSIGN(NodesChecker);
 };

@@ -152,7 +152,7 @@ Status FalconReporter::StartFalconPusherThreadPool() {
       .Build(&pusher_thread_pool_));
   for (int i = 0; i < FLAGS_collector_falcon_pusher_count; ++i) {
     RETURN_NOT_OK(pusher_thread_pool_->SubmitFunc(std::bind(&FalconReporter::FalconPusher,
-                                                            shared_from_this())));
+                                                            this)));
   }
 
   return Status::OK();

@@ -63,8 +63,7 @@ struct FalconItem : public ItemBase {
   std::string counter_type;
 };
 
-class FalconReporter : public ReporterBase,
-                       public std::enable_shared_from_this<FalconReporter> {
+class FalconReporter : public ReporterBase {
  public:
   FalconReporter();
   ~FalconReporter() override;

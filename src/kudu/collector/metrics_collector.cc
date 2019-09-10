@@ -190,7 +190,7 @@ Status MetricsCollector::ValidateTableFilter(const string& attribute_filter,
 Status MetricsCollector::InitMetrics() {
   string resp;
   if (PREDICT_TRUE(FLAGS_collector_metrics_types_for_test.empty())) {
-    RETURN_NOT_OK(GetMetrics(nodes_checker_->GetFirstNode() + "/metrics?include_schema=1", &resp));
+    RETURN_NOT_OK(GetMetrics(nodes_checker_->GetFirstMaster() + "/metrics?include_schema=1", &resp));
   } else {
     resp = FLAGS_collector_metrics_types_for_test;
   }
@@ -308,6 +308,9 @@ Status MetricsCollector::CollectAndReportMetrics() {
   TRACE("init");
   vector<string> tserver_http_addrs = nodes_checker_->GetNodes();
   TRACE("Nodes got");
+  if (tserver_http_addrs.empty()) {
+    return Status::OK();
+  }
   RETURN_NOT_OK(UpdateThreadPool(static_cast<int32_t>(tserver_http_addrs.size())));
   vector<TablesMetrics> hosts_metrics_by_table_name(tserver_http_addrs.size());
   vector<TablesHistMetrics> hosts_hist_metrics_by_table_name(tserver_http_addrs.size());

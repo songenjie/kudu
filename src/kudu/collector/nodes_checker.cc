@@ -57,6 +57,9 @@ using kudu::tools::KsckCheckResult;
 namespace kudu {
 namespace collector {
 
+const std::string NodesChecker::kMaster = "master";
+const std::string NodesChecker::kTserver = "tserver";
+
 NodesChecker::NodesChecker(scoped_refptr<ReporterBase> reporter)
   : initialized_(false),
     reporter_(std::move(reporter)),
@@ -71,7 +74,7 @@ Status NodesChecker::Init() {
   CHECK(!initialized_);
 
   RETURN_NOT_OK(UpdateNodes());
-  CHECK(!tserver_http_addrs_.empty());
+  CHECK(!master_http_addrs_.empty());
 
   initialized_ = true;
   return Status::OK();
@@ -105,14 +108,14 @@ string NodesChecker::ToString() const {
 }
 
 vector<string> NodesChecker::GetNodes() {
-  shared_lock<RWMutex> l(tserver_http_addrs_lock_);
+  shared_lock<RWMutex> l(nodes_lock_);
   return tserver_http_addrs_;
 }
 
-string NodesChecker::GetFirstNode() {
-  shared_lock<RWMutex> l(tserver_http_addrs_lock_);
-  CHECK(!tserver_http_addrs_.empty());
-  return tserver_http_addrs_[0];
+string NodesChecker::GetFirstMaster() {
+  shared_lock<RWMutex> l(nodes_lock_);
+  CHECK(!master_http_addrs_.empty());
+  return master_http_addrs_[0];
 }
 
 Status NodesChecker::StartNodesCheckerThread() {
@@ -148,8 +151,15 @@ void NodesChecker::UpdateAndCheckNodes() {
 }
 
 Status NodesChecker::UpdateNodes() {
+  RETURN_NOT_OK(UpdateServers(kMaster));
+  RETURN_NOT_OK(UpdateServers(kTserver));
+  return Status::OK();
+}
+
+Status NodesChecker::UpdateServers(const std::string& role) {
+  DCHECK(role == kTserver || role == kMaster);
   vector<string> args = {
-    "tserver",
+    role,
     "list",
     "@" + FLAGS_collector_cluster_name,
     "-columns=http-addresses",
@@ -160,23 +170,26 @@ Status NodesChecker::UpdateNodes() {
   string tool_stderr;
   RETURN_NOT_OK_PREPEND(tools::RunKuduTool(args, &tool_stdout, &tool_stderr),
                         Substitute("out: $0, err: $1", tool_stdout, tool_stderr));
-  TRACE("'tserver list' done");
+  TRACE(Substitute("'$0 list' done", role));
 
   JsonReader r(tool_stdout);
   RETURN_NOT_OK(r.Init());
-  vector<const Value*> tservers;
-  CHECK_OK(r.ExtractObjectArray(r.root(), nullptr, &tservers));
-  vector<string> tserver_http_addrs;
-  for (const Value* tserver : tservers) {
+  vector<const Value*> servers;
+  CHECK_OK(r.ExtractObjectArray(r.root(), nullptr, &servers));
+  vector<string> server_http_addrs;
+  for (const Value* server : servers) {
     string http_address;
-    CHECK_OK(r.ExtractString(tserver, "http-addresses", &http_address));
-    tserver_http_addrs.emplace_back(http_address);
+    CHECK_OK(r.ExtractString(server, "http-addresses", &http_address));
+    server_http_addrs.emplace_back(http_address);
   }
-  TRACE(Substitute("Result parsed, nodes count $0", tserver_http_addrs.size()));
+  TRACE(Substitute("Result parsed, nodes count $0", server_http_addrs.size()));
 
-  {
-    std::lock_guard<RWMutex> l(tserver_http_addrs_lock_);
-    tserver_http_addrs_.swap(tserver_http_addrs);
+  if (role == kTserver) {
+    std::lock_guard<RWMutex> l(nodes_lock_);
+    tserver_http_addrs_.swap(server_http_addrs);
+  } else {
+    std::lock_guard<RWMutex> l(nodes_lock_);
+    master_http_addrs_.swap(server_http_addrs);
   }
   TRACE("Nodes updated");
 
@@ -196,8 +209,8 @@ Status NodesChecker::CheckNodes() const {
   };
   string tool_stdout;
   string tool_stderr;
-  RETURN_NOT_OK_PREPEND(tools::RunKuduTool(args, &tool_stdout, &tool_stderr),
-                        Substitute("out: $0, err: $1", tool_stdout, tool_stderr));
+  WARN_NOT_OK(tools::RunKuduTool(args, &tool_stdout, &tool_stderr),
+              Substitute("out: $0, err: $1", tool_stdout, tool_stderr));
 
   TRACE("'cluster ksck' done");
 
@@ -234,46 +247,52 @@ Status NodesChecker::ReportNodesMetrics(const string& data) const {
 
   // Tservers health info.
   vector<const Value*> tservers;
-  CHECK_OK(r.ExtractObjectArray(ksck, "tserver_summaries", &tservers));
-  for (const Value* tserver : tservers) {
-    string address;
-    CHECK_OK(r.ExtractString(tserver, "address", &address));
-    string health;
-    CHECK_OK(r.ExtractString(tserver, "health", &health));
-    items.emplace_back(reporter_->ConstructItem(
-      ExtractHostName(address),
-      "kudu-tserver-health",
-      "host",
-      timestamp,
-      static_cast<int64_t>(ExtractServerHealthStatus(health)),
-      "GAUGE",
-      ""));
+  Status s = r.ExtractObjectArray(ksck, "tserver_summaries", &tservers);
+  CHECK(s.ok() || s.IsNotFound());
+  if (s.ok()) {
+    for (const Value* tserver : tservers) {
+      string address;
+      CHECK_OK(r.ExtractString(tserver, "address", &address));
+      string health;
+      CHECK_OK(r.ExtractString(tserver, "health", &health));
+      items.emplace_back(reporter_->ConstructItem(
+        ExtractHostName(address),
+        "kudu-tserver-health",
+        "host",
+        timestamp,
+        static_cast<int64_t>(ExtractServerHealthStatus(health)),
+        "GAUGE",
+        ""));
+    }
+    TRACE(Substitute("Tservers health info reported, count $0", tservers.size()));
   }
-  TRACE(Substitute("Tservers health info reported, count $0", tservers.size()));
 
   // Tables health info.
   uint32_t health_table_count = 0;
   vector<const Value*> tables;
-  CHECK_OK(r.ExtractObjectArray(ksck, "table_summaries", &tables));
-  for (const Value* table : tables) {
-    string name;
-    CHECK_OK(r.ExtractString(table, "name", &name));
-    string health;
-    CHECK_OK(r.ExtractString(table, "health", &health));
-    KsckCheckResult health_status = ExtractTableHealthStatus(health);
-    items.emplace_back(reporter_->ConstructItem(
-      name,
-      "kudu-table-health",
-      "table",
-      timestamp,
-      static_cast<int64_t>(health_status),
-      "GAUGE",
-      ""));
-    if (health_status == KsckCheckResult::HEALTHY) {
-      health_table_count += 1;
+  s = r.ExtractObjectArray(ksck, "table_summaries", &tables);
+  CHECK(s.ok() || s.IsNotFound());
+  if (s.ok()) {
+    for (const Value* table : tables) {
+      string name;
+      CHECK_OK(r.ExtractString(table, "name", &name));
+      string health;
+      CHECK_OK(r.ExtractString(table, "health", &health));
+      KsckCheckResult health_status = ExtractTableHealthStatus(health);
+      items.emplace_back(reporter_->ConstructItem(
+        name,
+        "kudu-table-health",
+        "table",
+        timestamp,
+        static_cast<int64_t>(health_status),
+        "GAUGE",
+        ""));
+      if (health_status == KsckCheckResult::HEALTHY) {
+        health_table_count += 1;
+      }
     }
+    TRACE(Substitute("Tables health info reported, count $0", tables.size()));
   }
-  TRACE(Substitute("Tables health info reported, count $0", tables.size()));
 
   // Healthy table ratio.
   if (!tables.empty()) {
@@ -285,8 +304,8 @@ Status NodesChecker::ReportNodesMetrics(const string& data) const {
       100 * health_table_count / tables.size(),
       "GAUGE",
       ""));
+    TRACE("Healthy table ratio reported");
   }
-  TRACE("Healthy table ratio reported");
 
   // Count summaries.
   vector<const Value*> count_summaries;
