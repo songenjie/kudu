@@ -123,7 +123,7 @@ def get_service_usage_filename(date):
 def collect_origin_usage_for_cluster(cluster_name, cluster_info):
     kudu_utils.LOG.info('Start to collect usage info for cluster %s' % cluster_name)
     # Output: db.table size
-    cmd = '%s/kudu-collector -collector_cluster_name=%s ' \
+    cmd = '%s/kudu_collector -collector_cluster_name=%s ' \
           '-collector_report_method=local -collector_metrics=on_disk_size -log_dir=./log | ' \
           'egrep "^table on_disk_size " | sort | awk \'{print $3, $4}\'' \
           % (kudu_utils.g_script_path, cluster_name)

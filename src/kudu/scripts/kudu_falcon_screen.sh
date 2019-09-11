@@ -3,7 +3,7 @@
 PID=$$
 BASE_DIR="$( cd "$( dirname "$0" )" && pwd )"
 KUDU=${KUDU_HOME}/kudu
-COLLECTOR=${KUDU_HOME}/kudu-collector
+COLLECTOR=${KUDU_HOME}/kudu_collector
 if [[ ! -f ${KUDU} || ! -f ${COLLECTOR} ]]; then
   echo "ERROR: ${KUDU} or ${COLLECTOR} not found"
   exit 1
