@@ -53,6 +53,8 @@ DEFINE_int32(collector_falcon_pusher_count, 4,
              "Thread count to push collected items to falcon agent");
 DEFINE_int32(collector_report_batch_size, 1000,
             "Count of items will be pushed to falcon agent by batch");
+DEFINE_int32(collector_push_timeout_ms, 20,
+             "Timeout for pushing items to falcon agent");
 
 DECLARE_string(collector_cluster_name);
 DECLARE_int32(collector_interval_sec);
@@ -173,7 +175,7 @@ void FalconReporter::ReportItems() {
 
   list<scoped_refptr<ItemBase>> falcon_items;
   PopItems(&falcon_items);
-  WARN_NOT_OK(PushToAgent(std::move(falcon_items)), "PushToAgent failed.");
+  WARN_NOT_OK(PushToAgent(std::move(falcon_items)), "PushToAgent failed");
   int64_t elapsed_ms = (MonoTime::Now() - start).ToMilliseconds();
   if (elapsed_ms > FLAGS_collector_warn_threshold_ms) {
     if (Trace::CurrentTrace()) {
@@ -211,6 +213,7 @@ Status FalconReporter::PushToAgent(list<scoped_refptr<ItemBase>> falcon_items) {
 
   EasyCurl curl;
   faststring dst;
+  curl.set_timeout(MonoDelta::FromMilliseconds(FLAGS_collector_push_timeout_ms));
   RETURN_NOT_OK(curl.PostToURL(FLAGS_collector_falcon_agent, data, &dst));
   TRACE(Substitute("Pushed items to agent, size $0", data.size()));
   return Status::OK();

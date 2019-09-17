@@ -9,22 +9,47 @@ if [[ ! -f ${KUDU} || ! -f ${COLLECTOR} ]]; then
   exit 1
 fi
 
-if [[ $# -ne 3 ]]
+function usage() {
+cat << EOF
+This tool is for update falcon screen for specified kudu cluster.
+USAGE: $0 <cluster_name> [table_count] [metrics_template]
+       cluster_name       Cluster name operated on, should be configurated in $KUDU_CONFIG/kudurc
+       table_count        An indicator of how many tables will be monitored, actual monitored table count is in range [table_count, 3*table_count]
+       metrics_template   Which metric template will be used, 'simple' or 'full'
+EOF
+}
+
+if [[ $# -lt 1 ]]
 then
-  echo "This tool is for update falcon screen for specified kudu cluster."
-  echo "USAGE: $0 <cluster_name> <masters> <table_count>"
+  usage
   exit 1
 fi
 
 CLUSTER=$1
 MASTERS=$2
-TABLE_COUNT=$3
+TABLE_COUNT=9999
+if [[ $# -ge 2 ]]
+then
+  TABLE_COUNT=$2
+fi
+
+TEMPLATE_NAME='full'
+if [[ $# -ge 3 ]]
+then
+  TEMPLATE_NAME=$3
+fi
+if [[ "${TEMPLATE_NAME}"x != "simple"x && "${TEMPLATE_NAME}"x != "full"x ]]
+then
+  usage
+  exit 1
+fi
 
 echo "UID: ${UID}"
 echo "PID: ${PID}"
 echo "cluster: ${CLUSTER}"
 echo "masters: ${MASTERS}"
 echo "top n table: ${TABLE_COUNT}"
+echo "metric template: ${TEMPLATE_NAME}"
 echo "Start time: `date`"
 ALL_START_TIME=$((`date +%s`))
 echo
@@ -67,11 +92,11 @@ cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table on_disk_size " | 
 cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table scanner_bytes_returned " | sort -rnk4 | head -n ${TABLE_COUNT} | awk '{print $3}' > /tmp/${UID}.${PID}.kudu.top.scanner_bytes_returned
 cat /tmp/${UID}.${PID}.kudu.top.* | sort -n | uniq > /tmp/${UID}.${PID}.kudu.table.list
 echo "total `wc -l /tmp/${UID}.${PID}.kudu.table.list | awk '{print $1}'` tables to monitor"
-echo -e "\033[32m Please set the following one line to the kudu collector's \`tables\` argument manually\033[0m"
+echo -e "\033[32m Please set the following one line to the kudu collector's \`collector_table_names\` argument manually\033[0m"
 awk BEGIN{RS=EOF}'{gsub(/\n/,",");print}' /tmp/${UID}.${PID}.kudu.table.list
 echo ""
 
-python ${BASE_DIR}/falcon_screen.py ${CLUSTER} ${BASE_DIR}/falcon_screen.json /tmp/${UID}.${PID}.kudu.master.list /tmp/${UID}.${PID}.kudu.tserver.list /tmp/${UID}.${PID}.kudu.table.list
+python ${BASE_DIR}/falcon_screen.py ${CLUSTER} ${TEMPLATE_NAME} ${BASE_DIR}/falcon_screen.json /tmp/${UID}.${PID}.kudu.master.list /tmp/${UID}.${PID}.kudu.tserver.list /tmp/${UID}.${PID}.kudu.table.list
 if [[ $? -ne 0 ]]; then
     echo "ERROR: falcon screen operate failed"
     exit 1

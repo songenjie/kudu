@@ -21,18 +21,20 @@
           "metric=kudu-table-health service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=all_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=alter_schema_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=bloom_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=bloom_lookups_per_op_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=bloom_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=bytes_flushed service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=commit_wait_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=compact_rs_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=compact_rs_running service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=delta_file_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=delta_file_lookups_per_op_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=delta_file_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=delta_major_compact_rs_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=delta_major_compact_rs_running service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=delta_minor_compact_rs_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=delta_minor_compact_rs_running service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=failed_elections_since_stable_leader service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=flush_dms_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=flush_dms_running service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=flush_mrs_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -40,8 +42,8 @@
           "metric=follower_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=in_progress_ops service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=insertions_failed_dup_key service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=key_file_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=key_file_lookups_per_op_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=key_file_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=leader_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=log_append_latency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=log_bytes_logged service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -59,6 +61,7 @@
           "metric=majority_done_ops service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=memrowset_size service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=mrs_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=num_rowsets_on_disk service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=on_disk_data_size service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=on_disk_size service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=op_prepare_queue_length_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -81,6 +84,7 @@
           "metric=snapshot_read_inflight_wait_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=state service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=tablet_active_scanners service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=time_since_last_leader_heartbeat service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=transaction_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=undo_delta_block_estimated_retained_bytes service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=undo_delta_block_gc_bytes_deleted service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -91,13 +95,13 @@
           "metric=upserts_as_updates service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=write_op_duration_client_propagated_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=write_op_duration_commit_wait_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=4"
+          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4"
       ],
       "simple": [
           "metric=kudu-tserver-health service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=kudu-table-health service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=all_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=bloom_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=bytes_flushed service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=compact_rs_duration_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -132,8 +136,7 @@
           "metric=undo_delta_block_estimated_retained_bytes service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=upserts_as_updates service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=write_op_duration_client_propagated_consistency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4",
-          "metric=average_diskrowset_height service=kudu cluster=${cluster.name} level=${level} v=4"
+          "metric=write_transactions_inflight service=kudu cluster=${cluster.name} level=${level} v=4"
       ],
       "replica_count" : [
           "metric=replica_count service=kudu cluster=${cluster.name} level=${level} v=4"
@@ -284,8 +287,7 @@
           "title": "单表metrics",
           "endpoints": ["${for.each.table}"],
           "counters": {
-              "level": "table",
-              "template": "simple"
+              "level": "table"
           },
           "graph_type": "h",
           "method": "",
@@ -300,8 +302,7 @@
           "title": "单节点metrics",
           "endpoints": ["${for.each.tserver}"],
           "counters": {
-              "level": "host",
-              "template": "simple"
+              "level": "host"
           },
           "graph_type": "h",
           "method": "",

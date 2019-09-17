@@ -446,9 +446,9 @@ Status MetricsCollector::MergeToClusterLevelMetrics(
   return Status::OK();
 }
 
-Status MetricsCollector::GetNumberMetricValue(const rapidjson::Value *metric,
-                                              const string &metric_name /*metric_name*/,
-                                              int64_t *result) const {
+Status MetricsCollector::GetNumberMetricValue(const rapidjson::Value* metric,
+                                              const string& metric_name /*metric_name*/,
+                                              int64_t* result) const {
   CHECK(result);
   if (metric->IsUint64() || metric->IsInt64() || metric->IsUint() || metric->IsInt()) {
     *result = metric->GetInt64();
@@ -843,7 +843,7 @@ Status MetricsCollector::GetMetrics(const string& url, string* resp) {
   } else {
     *resp = dst_str;
   }
-  TRACE("Metrics got from server");
+  TRACE(Substitute("Metrics got from server: $0", url));
 
   return Status::OK();
 }

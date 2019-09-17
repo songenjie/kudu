@@ -146,7 +146,7 @@ def parse_lines(file_name):
 
 
 # return: screenConfigs
-def prepare_screen_config(clusterName, screenTemplateFile, tableListFile, masterListFile, tserverListFile):
+def prepare_screen_config(clusterName, templateName, screenTemplateFile, tableListFile, masterListFile, tserverListFile):
     # tableList
     tableList = parse_lines(tableListFile)
     if len(tableList) == 0:
@@ -225,7 +225,7 @@ def prepare_screen_config(clusterName, screenTemplateFile, tableListFile, master
                 print("ERROR: bad json: [details][%s][graphs][%s]: [counters] should be provided as non-empty list/dict"
                       % (screen, title))
                 sys.exit(1)
-            for counter in templateJson[counters["template"]]:
+            for counter in templateJson[counters["template"] if counters.has_key("template") else templateName]:
                 newCounters.append(counter.replace("${cluster.name}", clusterName).
                                            replace("${level}", counters["level"]))
             if len(newCounters) == 0:
@@ -419,15 +419,16 @@ if __name__ == '__main__':
         print("ERROR: please set 'serviceAccount' and 'serviceSeedMd5' in %s" % sys.argv[0])
         sys.exit(1)
 
-    if len(sys.argv) != 6:
-        print("USAGE: python %s <cluster_name> <screen_template_file> <master_list_file> <tserver_list_file> <table_list_file>" % sys.argv[0])
+    if len(sys.argv) != 7:
+        print("USAGE: python %s <cluster_name> <template_name> <screen_template_file> <master_list_file> <tserver_list_file> <table_list_file>" % sys.argv[0])
         sys.exit(1)
 
     clusterName = sys.argv[1]
-    screenTemplateFile = sys.argv[2]
-    masterListFile = sys.argv[3]
-    tserverListFile = sys.argv[4]
-    tableListFile = sys.argv[5]
+    templateName = sys.argv[2]
+    screenTemplateFile = sys.argv[3]
+    masterListFile = sys.argv[4]
+    tserverListFile = sys.argv[5]
+    tableListFile = sys.argv[6]
 
     login()
 
@@ -435,7 +436,7 @@ if __name__ == '__main__':
     oldScreenName2Id = {}
     for oldScreen in oldKuduScreens:
         oldScreenName2Id[oldScreen['name']] = oldScreen['id']
-    screenConfigs = prepare_screen_config(clusterName, screenTemplateFile, tableListFile, masterListFile, tserverListFile)
+    screenConfigs = prepare_screen_config(clusterName, templateName, screenTemplateFile, tableListFile, masterListFile, tserverListFile)
     for screenName, graphConfigs in screenConfigs.items():
         if screenName not in oldScreenName2Id:
             # create screen

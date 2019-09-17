@@ -337,15 +337,13 @@ target_link_libraries(kudu_test_util
 #######################################
 # kudu_curl_util
 #######################################
-if(NOT NO_TESTS)
-  add_library(kudu_curl_util
-    curl_util.cc)
-  target_link_libraries(kudu_curl_util
-    security
-    ${CURL_LIBRARIES}
-    glog
-    gutil)
-endif()
+add_library(kudu_curl_util
+  curl_util.cc)
+target_link_libraries(kudu_curl_util
+  security
+  ${CURL_LIBRARIES}
+  glog
+  gutil)
 
 #######################################
 # kudu_test_main

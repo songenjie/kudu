@@ -174,9 +174,9 @@ class MetricsCollector : public RefCounted<MetricsCollector> {
   // When server side support attributes filter, this function has no effect.
   bool FilterByAttribute(const JsonReader& r,
                          const rapidjson::Value* entity) const;
-  Status GetNumberMetricValue(const rapidjson::Value *metric,
-                              const std::string &metric_name,
-                              int64_t *result) const;
+  Status GetNumberMetricValue(const rapidjson::Value* metric,
+                              const std::string& metric_name,
+                              int64_t* result) const;
   Status GetStringMetricValue(const rapidjson::Value* metric,
                               const std::string& metric_name,
                               int64_t* result) const;
