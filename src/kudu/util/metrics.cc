@@ -709,9 +709,9 @@ void StringGauge::set_value(const string& value) {
   unique_values_.clear();
 }
 
-bool StringGauge::MergeFrom(const scoped_refptr<Metric>& other) {
+void StringGauge::MergeFrom(const scoped_refptr<Metric>& other) {
   if (PREDICT_FALSE(this == other.get())) {
-    return true;
+    return;
   }
   UpdateModificationEpoch();
 
@@ -721,7 +721,6 @@ bool StringGauge::MergeFrom(const scoped_refptr<Metric>& other) {
   std::lock_guard<simple_spinlock> l(lock_);
   FillUniqueValuesUnlocked();
   unique_values_.insert(other_values.begin(), other_values.end());
-  return true;
 }
 
 void StringGauge::WriteValue(JsonWriter* writer) const {
