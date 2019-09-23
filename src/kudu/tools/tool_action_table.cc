@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#include <stdlib.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
@@ -104,6 +106,10 @@ DEFINE_string(lower_bound_type, "INCLUSIVE_BOUND",
 DEFINE_string(upper_bound_type, "EXCLUSIVE_BOUND",
               "The type of the upper bound, either inclusive or exclusive. "
               "Defaults to exclusive. This flag is case-insensitive.");
+DEFINE_uint32(reserve_seconds, 604800,
+              "Reserve seconds after being deleted.");
+DEFINE_bool(force_on_trashed_table, false,
+            "Force to alter a trashed table");
 DECLARE_bool(show_values);
 DECLARE_string(tables);
 
@@ -180,7 +186,10 @@ Status DeleteTable(const RunnerContext& context) {
   const string& table_name = FindOrDie(context.required_args, kTableNameArg);
   client::sp::shared_ptr<KuduClient> client;
   RETURN_NOT_OK(CreateKuduClient(context, &client));
-  return client->DeleteTableInCatalogs(table_name, FLAGS_modify_external_catalogs);
+  return client->DeleteTableInCatalogs(table_name,
+                                       FLAGS_modify_external_catalogs,
+                                       FLAGS_force_on_trashed_table,
+                                       FLAGS_reserve_seconds);
 }
 
 Status DescribeTable(const RunnerContext& context) {
@@ -393,6 +402,14 @@ Status LocateRow(const RunnerContext& context) {
   return Status::OK();
 }
 
+Status RecallTable(const RunnerContext& context) {
+  const string& table_name = FindOrDie(context.required_args, kTableNameArg);
+
+  client::sp::shared_ptr<KuduClient> client;
+  RETURN_NOT_OK(CreateKuduClient(context, &client));
+  return client->RecallTable(table_name);
+}
+
 Status RenameTable(const RunnerContext& context) {
   const string& table_name = FindOrDie(context.required_args, kTableNameArg);
   const string& new_table_name = FindOrDie(context.required_args, kNewTableNameArg);
@@ -401,6 +418,7 @@ Status RenameTable(const RunnerContext& context) {
   RETURN_NOT_OK(CreateKuduClient(context, &client));
   unique_ptr<KuduTableAlterer> alterer(client->NewTableAlterer(table_name));
   return alterer->RenameTo(new_table_name)
+                ->force_on_trashed_table(FLAGS_force_on_trashed_table)
                 ->modify_external_catalogs(FLAGS_modify_external_catalogs)
                 ->Alter();
 }
@@ -463,8 +481,9 @@ Status SetExtraConfig(const RunnerContext& context) {
   client::sp::shared_ptr<KuduClient> client;
   RETURN_NOT_OK(CreateKuduClient(context, &client));
   unique_ptr<KuduTableAlterer> alterer(client->NewTableAlterer(table_name));
-  alterer->AlterExtraConfig({ { config_name, config_value} });
-  return alterer->Alter();
+  return alterer->AlterExtraConfig({ { config_name, config_value} })
+                ->force_on_trashed_table(FLAGS_force_on_trashed_table)
+                ->Alter();
 }
 
 Status GetExtraConfigs(const RunnerContext& context) {
@@ -885,7 +904,9 @@ unique_ptr<Mode> BuildTableMode() {
       .Description("Delete a table")
       .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
       .AddRequiredParameter({ kTableNameArg, "Name of the table to delete" })
+      .AddOptionalParameter("force_on_trashed_table")
       .AddOptionalParameter("modify_external_catalogs")
+      .AddOptionalParameter("reserve_seconds")
       .Build();
 
   unique_ptr<Action> describe_table =
@@ -930,12 +951,20 @@ unique_ptr<Mode> BuildTableMode() {
       .AddRequiredParameter({ kNewColumnNameArg, "New column name" })
       .Build();
 
+  unique_ptr<Action> recall =
+      ActionBuilder("recall", &RecallTable)
+      .Description("Recall a deleted but still reserved table")
+      .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
+      .AddRequiredParameter({ kTableNameArg, "Name of the table to recall" })
+      .Build();
+
   unique_ptr<Action> rename_table =
       ActionBuilder("rename_table", &RenameTable)
       .Description("Rename a table")
       .AddRequiredParameter({ kMasterAddressesArg, kMasterAddressesArgDesc })
       .AddRequiredParameter({ kTableNameArg, "Name of the table to rename" })
       .AddRequiredParameter({ kNewTableNameArg, "New table name" })
+      .AddOptionalParameter("force_on_trashed_table")
       .AddOptionalParameter("modify_external_catalogs")
       .Build();
 
@@ -979,6 +1008,7 @@ unique_ptr<Mode> BuildTableMode() {
       .AddRequiredParameter({ kTableNameArg, "Name of the table to alter" })
       .AddRequiredParameter({ kConfigNameArg, "Name of the configuration" })
       .AddRequiredParameter({ kConfigValueArg, "New value for the configuration" })
+      .AddOptionalParameter("force_on_trashed_table")
       .Build();
 
   unique_ptr<Action> get_extra_configs =
@@ -1099,6 +1129,7 @@ unique_ptr<Mode> BuildTableMode() {
       .AddAction(std::move(list_tables))
       .AddAction(std::move(locate_row))
       .AddAction(std::move(rename_column))
+      .AddAction(std::move(recall))
       .AddAction(std::move(rename_table))
       .AddAction(std::move(scan_table))
       .AddAction(std::move(copy_table))
