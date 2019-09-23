@@ -1620,7 +1620,9 @@ TEST_F(AdminCliTest, TestDeleteTable) {
     "table",
     "delete",
     master_address,
-    kTableId
+    kTableId,
+    "-force_on_trashed_table=false",
+    "-reserve_seconds=0"
   );
 
   vector<string> tables;
