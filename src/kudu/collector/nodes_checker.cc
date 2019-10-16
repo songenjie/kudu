@@ -42,6 +42,7 @@
 #include "kudu/util/trace.h"
 
 DECLARE_string(collector_cluster_name);
+DECLARE_string(collector_master_addrs);
 DECLARE_int32(collector_interval_sec);
 DECLARE_int32(collector_timeout_sec);
 DECLARE_int32(collector_warn_threshold_ms);
@@ -161,7 +162,7 @@ Status NodesChecker::UpdateServers(const std::string& role) {
   vector<string> args = {
     role,
     "list",
-    "@" + FLAGS_collector_cluster_name,
+    FLAGS_collector_master_addrs,
     "-columns=http-addresses",
     "-format=json",
     Substitute("-timeout_ms=$0", FLAGS_collector_timeout_sec*1000)
@@ -200,7 +201,7 @@ Status NodesChecker::CheckNodes() const {
   vector<string> args = {
     "cluster",
     "ksck",
-    "@" + FLAGS_collector_cluster_name,
+    FLAGS_collector_master_addrs,
     "-consensus=false",
     "-ksck_format=json_compact",
     "-color=never",

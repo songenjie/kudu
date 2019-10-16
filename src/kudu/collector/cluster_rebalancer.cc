@@ -35,10 +35,12 @@
 #include "kudu/util/status.h"
 #include "kudu/util/thread.h"
 
+DEFINE_bool(auto_rebalance, true, "Whether to rebalance cluster automatically");
 DEFINE_string(rebalance_time, "00:00",
               "Time to perform cluster rebalance, format in HH:MM");
 
 DECLARE_string(collector_cluster_name);
+DECLARE_string(collector_master_addrs);
 DECLARE_int32(collector_interval_sec);
 DECLARE_int32(collector_timeout_sec);
 
@@ -69,6 +71,10 @@ Status ClusterRebalancer::Init() {
 
 Status ClusterRebalancer::Start() {
   CHECK(initialized_);
+
+  if (!FLAGS_auto_rebalance) {
+    return Status::OK();
+  }
 
   RETURN_NOT_OK(StartClusterRebalancerThread());
 
@@ -114,7 +120,7 @@ Status ClusterRebalancer::RebalanceCluster() {
   vector<string> args = {
     "cluster",
     "rebalance",
-    "@" + FLAGS_collector_cluster_name
+    FLAGS_collector_master_addrs
   };
   string tool_stdout;
   string tool_stderr;

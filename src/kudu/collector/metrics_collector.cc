@@ -190,7 +190,8 @@ Status MetricsCollector::ValidateTableFilter(const string& attribute_filter,
 Status MetricsCollector::InitMetrics() {
   string resp;
   if (PREDICT_TRUE(FLAGS_collector_metrics_types_for_test.empty())) {
-    RETURN_NOT_OK(GetMetrics(nodes_checker_->GetFirstMaster() + "/metrics?include_schema=1", &resp));
+    RETURN_NOT_OK(GetMetrics(
+        nodes_checker_->GetFirstMaster() + "/metrics?include_schema=1", &resp));
   } else {
     resp = FLAGS_collector_metrics_types_for_test;
   }
@@ -205,7 +206,7 @@ Status MetricsCollector::InitMetrics() {
   for (const Value* entity : entities) {
     string entity_type;
     CHECK_OK(r.ExtractString(entity, "type", &entity_type));
-    if (entity_type == "tablet" || entity_type == "table") {
+    if (entity_type == "tablet") {
       if (tablet_entity_inited) continue;
       EmplaceOrDie(&metric_types_by_entity_type, std::make_pair("tablet", MetricTypes()));
       auto& tablet_metric_types = FindOrDie(metric_types_by_entity_type, "tablet");

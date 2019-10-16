@@ -39,6 +39,9 @@
 
 DEFINE_string(collector_cluster_name, "",
               "Cluster name of this collector to operate");
+DEFINE_string(collector_master_addrs, "",
+              "Comma-separated list of Kudu master addresses where each address is of "
+              "form 'hostname:port");
 DEFINE_int32(collector_interval_sec, 60,
              "Number of interval seconds to collect metrics");
 DEFINE_string(collector_report_method, "",
