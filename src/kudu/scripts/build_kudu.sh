@@ -21,7 +21,7 @@ function get_stdcpp_lib()
     libname=`echo $libname | cut -f1 -d" "`
     if [ $1 = "true" ]; then
         gcc_path=`which gcc`
-        echo `dirname $gcc_path`/../lib64/$libname
+        echo `dirname $(dirname $gcc_path)`/$libname
     else
         libs=(`ldconfig -p|grep $libname|awk '{print $NF}'`)
 
