@@ -644,7 +644,7 @@ TEST(TestMetricsCollector, TestInitMetrics) {
   FLAGS_collector_metrics_types_for_test =
       R"*([                                                       )*"
       R"*(  {                                                     )*"
-      R"*(    "type": "table",                                    )*"
+      R"*(    "type": "tablet",                                   )*"
       R"*(    "id": "table1",                                     )*"
       R"*(    "metrics": [                                        )*"
       R"*(      {                                                 )*"
@@ -662,7 +662,7 @@ TEST(TestMetricsCollector, TestInitMetrics) {
       R"*(    ]                                                   )*"
       R"*(  },                                                    )*"
       R"*(  {                                                     )*"
-      R"*(    "type": "table",                                    )*"
+      R"*(    "type": "tablet",                                   )*"
       R"*(    "id": "table2",                                     )*"
       R"*(    "metrics": [                                        )*"
       R"*(      {                                                 )*"
