@@ -2,6 +2,14 @@
 
 BASE_DIR="$( cd "$( dirname "$0"  )" && cd ../../.. && pwd )"
 
+function usage()
+{
+    echo "Options:"
+    echo "  -h"
+    echo "  -g|--custom-gcc"
+    exit 0
+}
+
 #USAGE: copy_file src [src...] dest
 function copy_file() {
   if [[ $# -lt 2 ]]; then
@@ -21,7 +29,7 @@ function get_stdcpp_lib()
     libname=`echo $libname | cut -f1 -d" "`
     if [ $1 = "true" ]; then
         gcc_path=`which gcc`
-        echo `dirname $(dirname $gcc_path)`/$libname
+        echo `dirname $gcc_path`/../lib64/$libname
     else
         libs=(`ldconfig -p|grep $libname|awk '{print $NF}'`)
 
@@ -53,6 +61,20 @@ function check_bit()
         echo "true"
     fi
 }
+
+custom_gcc="false"
+while [[ $# > 0 ]]; do
+    option_key="$1"
+    case $option_key in
+        -g|--custom-gcc)
+            custom_gcc="true"
+            ;;
+        -h|--help)
+            usage
+            ;;
+    esac
+    shift
+done
 
 KUDU_VERSION=`cat ${BASE_DIR}/version.txt`
 OS=`lsb_release -d | awk '{print $2}'`
@@ -107,7 +129,7 @@ copy_file ${BASE_DIR}/build/latest/bin/kudu-collector ${PACK_DIR}/kudu_collector
 copy_file ${BASE_DIR}/build/latest/bin/kudu-master ${PACK_DIR}/kudu_master
 copy_file ${BASE_DIR}/build/latest/bin/kudu-tserver ${PACK_DIR}/kudu_tablet_server
 copy_file ${BASE_DIR}/build/latest/bin/kudu ${PACK_DIR}/
-copy_file `get_stdcpp_lib true` ${PACK_DIR}/
+copy_file `get_stdcpp_lib $custom_gcc` ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/batch_operate_on_tables.sh ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.json ${PACK_DIR}/
 copy_file ${BASE_DIR}/src/kudu/scripts/falcon_screen.py ${PACK_DIR}/
