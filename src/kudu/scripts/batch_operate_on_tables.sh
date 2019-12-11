@@ -16,7 +16,7 @@ FILE=$1
 OPERATE=$2
 CLUSTER=$3
 DST_CLUSTER=$4
-FLAGS="-show_attributes"
+#FLAGS="-show_attributes"
 #FLAGS="-create_table=false -write_type=upsert"
 BIN_PATH=${KUDU_HOME}/kudu
 PID=$$
@@ -43,10 +43,15 @@ then
     exit $?
 fi
 
+if [ -n "${DST_CLUSTER}" ]
+then
+    DST_CLUSTER=@${DST_CLUSTER}
+fi
+
 if [ "${FILE}" == "auto" ]
 then
     TABLE_LIST=/tmp/$UID.${PID}.table.list
-    ${BIN_PATH} table list ${CLUSTER} | sort -n >${TABLE_LIST}
+    ${BIN_PATH} table list @${CLUSTER} | sort -n >${TABLE_LIST}
 else
     TABLE_LIST=${FILE}
 fi

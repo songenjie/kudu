@@ -138,9 +138,7 @@ def get_tablet_server_info(hostname, tservers_info):
 def set_flag(rpc_address, seconds):
     cmd = ('${KUDU_HOME}/kudu tserver set_flag %s follower_unavailable_considered_failed_sec %s'
            % (rpc_address, seconds))
-    print(time_header() + cmd)
     status, output = commands.getstatusoutput(cmd)
-    print(time_header() + 'operate status: ' + str(status))
 
 
 def rebalance_cluster(blacklist_tserver_uuid):
@@ -150,7 +148,6 @@ def rebalance_cluster(blacklist_tserver_uuid):
         ignored_tservers_uuid.add(uuid)
     cmd = ('${KUDU_HOME}/kudu cluster rebalance @%s -blacklist_tservers=%s -ignored_tservers=%s'
            % (cluster, blacklist_tserver_uuid, str(','.join(ignored_tservers_uuid))))
-    print(time_header() + cmd)
     p = subprocess.Popen(cmd, stdout = subprocess.PIPE, shell=True)
     for line in iter(p.stdout.readline, b''):
         print line
@@ -175,9 +172,9 @@ if operate == 'rolling_update' and flags.find('--update_package') == -1:
         flags += ' --confirm_install'
 check_parameter('The extra flags are: %s? (y/n)', flags, True)
 check_parameter('The known unhealth nodes are: %s? (y/n)', ','.join(known_unhealth_nodes), True)
-check_parameter('The default value of follower_unavailable_considered_failed_sec is: %s',
-                default_follower_unavailable_considered_failed_sec)
-check_parameter('You will rebalance cluster after operation? %s (y/n)', rebalance_cluster_after_operation, True)
+check_parameter('The default value of follower_unavailable_considered_failed_sec is: %s? (y/n)',
+                default_follower_unavailable_considered_failed_sec, True)
+check_parameter('You will rebalance cluster after operation: %s? (y/n)', rebalance_cluster_after_operation, True)
 
 tservers_info = get_tservers_info()
 wait_cluster_health()
@@ -194,10 +191,8 @@ for task in tasks:
     if 'tablet_server' in job:
         cmd = ('%s/deploy show kudu %s --job %s --task %d'
           % (minos_client_path, cluster, job, task))
-        print(cmd)
         status, output = commands.getstatusoutput(cmd)
         print(output)
-        print(time_header() + 'operate status: ' + str(status))
         hostname = parse_node_from_minos_output(output, job)
         rpc_address, uuid = get_tablet_server_info(hostname, tservers_info)
         if operate == 'stop':
@@ -207,9 +202,7 @@ for task in tasks:
     print(time_header() + 'Start to operate on task %d' % task)
     cmd = ('%s/deploy %s kudu %s --job %s --task %d --skip_confirm %s'
           % (minos_client_path, operate, cluster, job, task, flags))
-    print(cmd)
     status, output = commands.getstatusoutput(cmd)
-    print(time_header() + 'operate status: ' + str(status))
     print(output)
     if operate == 'stop':
         known_unhealth_nodes.add(parse_node_from_minos_output(output, job))
