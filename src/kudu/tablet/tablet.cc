@@ -160,6 +160,16 @@ METRIC_DEFINE_gauge_size(tablet, on_disk_data_size, "Tablet Data Size On Disk",
 METRIC_DEFINE_gauge_size(tablet, num_rowsets_on_disk, "Tablet Number of Rowsets on Disk",
                          kudu::MetricUnit::kUnits,
                          "Number of diskrowsets in this tablet");
+METRIC_DEFINE_gauge_uint64(tablet, last_read_elapsed_time, "Seconds Since Last Read",
+                           kudu::MetricUnit::kSeconds,
+                           "The elapsed time, in seconds, since the last read operation on this "
+                           "tablet, or since this Tablet object was created on current tserver if "
+                           "it hasn't been read since then.");
+METRIC_DEFINE_gauge_uint64(tablet, last_write_elapsed_time, "Seconds Since Last Write",
+                           kudu::MetricUnit::kSeconds,
+                           "The elapsed time, in seconds, since the last write operation on this "
+                           "tablet, or since this Tablet object was created on current tserver if "
+                           "it hasn't been written to since then.");
 
 using kudu::MaintenanceManager;
 using kudu::clock::HybridClock;
@@ -210,7 +220,9 @@ Tablet::Tablet(scoped_refptr<TabletMetadata> metadata,
     next_mrs_id_(0),
     clock_(std::move(clock)),
     rowsets_flush_sem_(1),
-    state_(kInitialized) {
+    state_(kInitialized),
+    last_write_time_(MonoTime::Now()),
+    last_read_time_(MonoTime::Now()) {
       CHECK(schema()->has_column_ids());
   compaction_policy_.reset(CreateCompactionPolicy());
 
@@ -231,6 +243,13 @@ Tablet::Tablet(scoped_refptr<TabletMetadata> metadata,
     METRIC_num_rowsets_on_disk.InstantiateFunctionGauge(
       metric_entity_, Bind(&Tablet::num_rowsets, Unretained(this)))
       ->AutoDetach(&metric_detacher_);
+    METRIC_last_read_elapsed_time.InstantiateFunctionGauge(
+      metric_entity_, Bind(&Tablet::LastReadElapsedSeconds, Unretained(this)), MergeType::kMin)
+      ->AutoDetach(&metric_detacher_);
+    METRIC_last_write_elapsed_time.InstantiateFunctionGauge(
+      metric_entity_, Bind(&Tablet::LastWriteElapsedSeconds, Unretained(this)), MergeType::kMin)
+      ->AutoDetach(&metric_detacher_);
+    METRIC_merged_entities_count_of_tablet.InstantiateHidden(metric_entity_, 1);
   }
 
   if (FLAGS_tablet_throttler_rpc_per_sec > 0 || FLAGS_tablet_throttler_bytes_per_sec > 0) {
@@ -910,6 +929,11 @@ Status Tablet::ApplyRowOperations(WriteTransactionState* tx_state) {
     RETURN_NOT_OK(ApplyRowOperation(&io_context, tx_state, row_op,
                                     tx_state->mutable_op_stats(op_idx)));
     DCHECK(row_op->has_result());
+  }
+
+  {
+    std::lock_guard<rw_spinlock> l(last_rw_time_lock_);
+    last_write_time_ = MonoTime::Now();
   }
 
   if (metrics_ && num_ops > 0) {
@@ -1951,6 +1975,23 @@ size_t Tablet::OnDiskDataSize() const {
     ret += rowset->OnDiskBaseDataSize();
   }
   return ret;
+}
+
+uint64_t Tablet::LastReadElapsedSeconds() const {
+  shared_lock<rw_spinlock> l(last_rw_time_lock_);
+  DCHECK(last_read_time_.Initialized());
+  return static_cast<uint64_t>((MonoTime::Now() - last_read_time_).ToSeconds());
+}
+
+void Tablet::UpdateLastReadTime() const {
+  std::lock_guard<rw_spinlock> l(last_rw_time_lock_);
+  last_read_time_ = MonoTime::Now();
+}
+
+uint64_t Tablet::LastWriteElapsedSeconds() const {
+  shared_lock<rw_spinlock> l(last_rw_time_lock_);
+  DCHECK(last_write_time_.Initialized());
+  return static_cast<uint64_t>((MonoTime::Now() - last_write_time_).ToSeconds());
 }
 
 size_t Tablet::DeltaMemStoresSize() const {
