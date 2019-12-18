@@ -8,6 +8,11 @@ if [[ ! -f ${KUDU} || ! -f ${COLLECTOR} ]]; then
   echo "ERROR: ${KUDU} or ${COLLECTOR} not found"
   exit 1
 fi
+KUDURC=${KUDU_CONFIG}/kudurc
+if [[ ! -f ${KUDURC} ]]; then
+  echo "ERROR: ${KUDURC} not found"
+  exit 1
+fi
 
 function usage() {
 cat << EOF
@@ -78,8 +83,13 @@ if [[ ${TSERVER_COUNT} -eq 0 ]]; then
     exit 1
 fi
 
+function parse_yaml() {
+  python -c "import yaml;print(yaml.load(open('$1').read(), Loader=yaml.FullLoader)['clusters_info']['$2']['master_addresses'])"
+}
+MASTERS=$(parse_yaml ${KUDURC} ${CLUSTER})
+
 # get table list
-${COLLECTOR} -collector_cluster_name=${CLUSTER} -collector_report_method=local -collector_metrics=bytes_flushed,on_disk_size,scanner_bytes_returned -log_dir=./log > /tmp/${UID}.${PID}.kudu.metric_table_value
+${COLLECTOR} -collector_master_addrs=${MASTERS} -collector_cluster_name=${CLUSTER} -collector_report_method=local -collector_metrics=bytes_flushed,on_disk_size,scanner_bytes_returned -log_dir=./log > /tmp/${UID}.${PID}.kudu.metric_table_value
 if [[ $? -ne 0 ]]; then
     echo "ERROR: ${COLLECTOR} execute failed"
     exit 1
@@ -90,7 +100,8 @@ cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table on_disk_size " | 
 cat /tmp/${UID}.${PID}.kudu.metric_table_value | egrep "^table scanner_bytes_returned " | sort -rnk4 | head -n ${TABLE_COUNT} | awk '{print $3}' > /tmp/${UID}.${PID}.kudu.top.scanner_bytes_returned
 cat /tmp/${UID}.${PID}.kudu.top.* | sort -n | uniq > /tmp/${UID}.${PID}.kudu.table.list
 echo "total `wc -l /tmp/${UID}.${PID}.kudu.table.list | awk '{print $1}'` tables to monitor"
-echo -e "\033[32m Please set the following one line to the kudu collector's \`collector_table_names\` argument manually\033[0m"
+echo -e "\033[32m Please set the following one line to the kudu collector's \`collector_attributes\` argument manually\033[0m"
+echo -n "table_name:"
 awk BEGIN{RS=EOF}'{gsub(/\n/,",");print}' /tmp/${UID}.${PID}.kudu.table.list
 echo ""
 
