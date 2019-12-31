@@ -1072,6 +1072,7 @@ class AtomicGauge : public Gauge {
     return static_cast<T>(value_.Load(kMemOrderRelease));
   }
   virtual void set_value(const T& value) {
+    UpdateModificationEpoch();
     value_.Store(static_cast<int64_t>(value), kMemOrderNoBarrier);
   }
   void Increment() {
@@ -1213,6 +1214,7 @@ class FunctionGauge : public Gauge {
   // This should be used during destruction. If you want a settable
   // Gauge, use a normal Gauge instead of a FunctionGauge.
   void DetachToConstant(T v) {
+    UpdateModificationEpoch();
     std::lock_guard<simple_spinlock> l(lock_);
     function_ = Bind(&FunctionGauge::Return, v);
   }
@@ -1252,6 +1254,10 @@ class FunctionGauge : public Gauge {
   // value() will be constant after MergeFrom()
   void MergeFrom(const scoped_refptr<Metric>& other) override {
     if (PREDICT_FALSE(this == other.get())) {
+      return;
+    }
+
+    if (InvalidateIfNeededInMerge(other)) {
       return;
     }
 

@@ -374,7 +374,8 @@ ServerBase::ServerBase(string name, const ServerBaseOptions& options,
           FLAGS_dns_resolver_cache_capacity_mb * 1024 * 1024,
           MonoDelta::FromSeconds(FLAGS_dns_resolver_cache_ttl_sec))),
       options_(options) {
-  METRIC_merged_entities_count_of_server.InstantiateHidden(metric_entity_, 1);
+  metric_entity_->NeverRetire(
+      METRIC_merged_entities_count_of_server.InstantiateHidden(metric_entity_, 1));
   FsManagerOpts fs_opts;
   fs_opts.metric_entity = metric_entity_;
   fs_opts.parent_mem_tracker = mem_tracker_;
