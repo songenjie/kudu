@@ -1071,7 +1071,7 @@ class AtomicGauge : public Gauge {
   T value() const {
     return static_cast<T>(value_.Load(kMemOrderRelease));
   }
-  virtual void set_value(const T& value) {
+  void set_value(const T& value) {
     UpdateModificationEpoch();
     value_.Store(static_cast<int64_t>(value), kMemOrderNoBarrier);
   }
@@ -1079,7 +1079,7 @@ class AtomicGauge : public Gauge {
     UpdateModificationEpoch();
     value_.IncrementBy(1, kMemOrderNoBarrier);
   }
-  virtual void IncrementBy(int64_t amount) {
+  void IncrementBy(int64_t amount) {
     UpdateModificationEpoch();
     value_.IncrementBy(amount, kMemOrderNoBarrier);
   }
