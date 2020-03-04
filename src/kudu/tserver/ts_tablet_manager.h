@@ -416,6 +416,7 @@ class TransitionInProgressDeleter : public RefCountedThreadSafe<TransitionInProg
  public:
   TransitionInProgressDeleter(TransitionInProgressMap* map, RWMutex* lock,
                               std::string entry);
+  void Destroy();
 
  private:
   friend class RefCountedThreadSafe<TransitionInProgressDeleter>;
@@ -424,6 +425,7 @@ class TransitionInProgressDeleter : public RefCountedThreadSafe<TransitionInProg
   TransitionInProgressMap* const in_progress_;
   RWMutex* const lock_;
   const std::string entry_;
+  bool is_destroyed_;
 };
 
 } // namespace tserver
