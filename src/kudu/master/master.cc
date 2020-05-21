@@ -312,8 +312,8 @@ void Master::CrashMasterOnCFileCorruption(const string& tablet_id) {
 
 Status Master::StartOutdatedReservedTablesDeleterThread() {
   return Thread::Create("master", "outdated-reserved-tables-deleter",
-                        &Master::OutdatedReservedTablesDeleterThread,
-                        this, &outdated_reserved_tables_deleter_thread_);
+                        [this]() { this->OutdatedReservedTablesDeleterThread(); },
+                        &outdated_reserved_tables_deleter_thread_);
 }
 
 void Master::OutdatedReservedTablesDeleterThread() {
