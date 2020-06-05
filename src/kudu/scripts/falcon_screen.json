@@ -44,6 +44,8 @@
           "metric=key_file_lookups_per_op_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=key_file_lookups service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=leader_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=last_read_elapsed_time service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=last_write_elapsed_time service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=live_row_count service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=log_append_latency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=log_bytes_logged service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -84,6 +86,7 @@
           "metric=state service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=tablet_active_scanners service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=time_since_last_leader_heartbeat service=kudu cluster=${cluster.name} level=${level} v=4",
+          "metric=transaction_memory_limit_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=transaction_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=undo_delta_block_estimated_retained_bytes service=kudu cluster=${cluster.name} level=${level} v=4",
           "metric=undo_delta_block_gc_bytes_deleted service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -173,7 +176,12 @@
         "metric=kudu-table-health service=kudu cluster=${cluster.name} level=${level} v=4"
       ],
       "table_l": [
+        "metric=last_read_elapsed_time service=kudu cluster=${cluster.name} level=${level} v=4",
+        "metric=last_write_elapsed_time service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=leader_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
+        "metric=live_row_count service=kudu cluster=${cluster.name} level=${level} v=4"
+      ],
+      "table_log": [
         "metric=log_append_latency_mean service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=log_append_latency_percentile_75 service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=log_append_latency_percentile_95 service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -207,8 +215,7 @@
         "metric=log_sync_latency_mean service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=log_sync_latency_percentile_75 service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=log_sync_latency_percentile_95 service=kudu cluster=${cluster.name} level=${level} v=4",
-        "metric=log_sync_latency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4",
-        "metric=live_row_count service=kudu cluster=${cluster.name} level=${level} v=4"
+        "metric=log_sync_latency_percentile_99 service=kudu cluster=${cluster.name} level=${level} v=4"
       ],
       "table_mn": [
         "metric=majority_done_ops service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -276,6 +283,7 @@
       "table_tw": [
         "metric=tablet_active_scanners service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=time_since_last_leader_heartbeat service=kudu cluster=${cluster.name} level=${level} v=4",
+        "metric=transaction_memory_limit_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=transaction_memory_pressure_rejections service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=write_op_duration_client_propagated_consistency_mean service=kudu cluster=${cluster.name} level=${level} v=4",
         "metric=write_op_duration_client_propagated_consistency_percentile_75 service=kudu cluster=${cluster.name} level=${level} v=4",
@@ -401,6 +409,7 @@
           "metric=rpcs_queue_overflow service=kudu cluster=${cluster.name} level=host v=4",
           "metric=rpcs_timed_out_in_queue service=kudu cluster=${cluster.name} level=host v=4",
           "metric=spinlock_contention_time service=kudu cluster=${cluster.name} level=host v=4",
+          "metric=sys_catalog_oversized_write_requests service=kudu cluster=${cluster.name} level=host v=4",
           "metric=tablet_copy_bytes_sent service=kudu cluster=${cluster.name} level=host v=4",
           "metric=tablet_copy_open_source_sessions service=kudu cluster=${cluster.name} level=host v=4",
           "metric=tcmalloc_current_total_thread_cache_bytes service=kudu cluster=${cluster.name} level=host v=4",
@@ -491,6 +500,7 @@
           "metric=log_block_manager_dead_containers_deleted service=kudu cluster=${cluster.name} level=host v=4",
           "metric=log_block_manager_full_containers service=kudu cluster=${cluster.name} level=host v=4",
           "metric=log_block_manager_holes_punched service=kudu cluster=${cluster.name} level=host v=4",
+          "metric=num_raft_leaders service=kudu cluster=${cluster.name} level=host v=4",
           "metric=op_apply_queue_length_percentile_99 service=kudu cluster=${cluster.name} level=host v=4",
           "metric=op_apply_queue_time_percentile_99 service=kudu cluster=${cluster.name} level=host v=4",
           "metric=op_apply_run_time_percentile_99 service=kudu cluster=${cluster.name} level=host v=4",
@@ -736,6 +746,22 @@
           "counters": {
               "level": "table",
               "template": "table_l"
+          },
+          "graph_type": "h",
+          "method": "",
+          "timespan": 86400
+        }
+      ]
+    },
+    {
+      "screen": "${cluster.name} [metrics_log]",
+      "graphs": [
+        {
+          "title": "单表metrics",
+          "endpoints": ["${for.each.table}"],
+          "counters": {
+              "level": "table",
+              "template": "table_log"
           },
           "graph_type": "h",
           "method": "",

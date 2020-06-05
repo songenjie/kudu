@@ -39,6 +39,7 @@ screenIdList = {
         "[metrics_f]",
         "[metrics_ghijk]",
         "[metrics_l]",
+        "[metrics_log]",
         "[metrics_mn]",
         "[metrics_o]",
         "[metrics_r]",
